@@ -18,58 +18,66 @@ import os
 
 
 
-# class My_Generator(Sequence):
-#     """
-#         Class to manage samples at training. Dataset is too big to load it in
-#         RAM, so this class manages to load one batch at a time.
-#     """
-#
-#     def __init__(self, image_filenames, labels, batch_size, xSize, ySize):
-#         self.xSize = xSize
-#         self.ySize = ySize
-#         self.image_filenames, self.labels = image_filenames, labels
-#         self.batch_size = batch_size
-#
-#     def __len__(self):
-#         return np.ceil(len(self.image_filenames) / float(self.batch_size)).astype(int)
-#
-#     def __getitem__(self, idx):
-#
-#         ############################## TODO ######################################
-#
-#         batch_x = self.image_filenames[idx * self.batch_size:(idx + 1) * self.batch_size]
-#         batch_y = self.labels[idx * self.batch_size:(idx + 1) * self.batch_size]
-#         y_out = np.array(batch_y)
-#         x_out = np.zeros((len(batch_x), 3, self.xSize, self.ySize))
-#         for file_name, i in zip(batch_x, range(len(batch_x))):
-#             im = imread(file_name)/255.
-#             x_out[i, 0, :, :] = im[:,:,0]
-#             x_out[i, 1, :, :] = im[:,:,1]
-#             x_out[i, 2, :, :] = im[:,:,2]
-#         return x_out, y_out
+class DataGenerator(keras.utils.Sequence):
+    'Generates data for Keras'
+    def __init__(self, list_IDs, batch_size=32, seq_len=100, num_features=84, n_channels=1,
+                 shuffle=True, labels_r_classes=13, labels_n_classes=13, labels_b_classes=2):
+        'Initialization'
+        self.seq_len = seq_len
+        self.num_features = num_features
+        self.batch_size = batch_size
+        self.list_IDs = list_IDs
+        self.n_labels_r = labels_r_classes
+        self.n_labels_n = labels_n_classes
+        self.n_labels_b = labels_b_classes
+        self.n_channels = n_channels
+        self.shuffle = shuffle
+        self.on_epoch_end()
 
+    def __len__(self):
+        'Denotes the number of batches per epoch'
+        return int(np.floor(len(self.list_IDs) / self.batch_size))
 
+    def __getitem__(self, index):
+        'Generate one batch of data'
+        # Generate indexes of the batch
+        indexes = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
 
-# my_training_batch_generator = My_Generator(training_filenames, GT_training, batch_size, roiSize, roiSize)
-# my_validation_batch_generator = My_Generator(validation_filenames, GT_validation, batch_size, roiSize, roiSize)
-#
-#
-# history = model.fit_generator(generator=my_training_batch_generator,
-#                                       steps_per_epoch = (num_training_samples // batch_size),
-#                                       epochs          = epochs,
-#                                       verbose         = 1,
-#                                       validation_data = my_validation_batch_generator,
-#                                       validation_steps= (num_validation_samples // batch_size),
-#                                       use_multiprocessing=True,
-#                                       workers         =16,
-#                                       max_queue_size  =32,
-#                                       # class_weight    = {0: 1., 1: class_proportion},
-#                                       shuffle         = True,
-#                                       callbacks       = callbacks
-#                                       )
-#
+        # Find list of IDs
+        list_IDs_temp = [self.list_IDs[k] for k in indexes]
 
+        # Generate data
+        X, yr, yn, yb = self.__data_generation(list_IDs_temp)
+        labels = {'root': yr, 'notes': yn, 'beats': yb}
 
+        return X, labels
+
+    def on_epoch_end(self):
+        'Updates indexes after each epoch'
+        self.indexes = np.arange(len(self.list_IDs))
+        if self.shuffle == True:
+            np.random.shuffle(self.indexes)
+
+    def __data_generation(self, list_IDs_temp):
+        'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
+        # Initialization
+        X = np.empty((self.batch_size, self.seq_len, self.num_features))
+        yr = np.empty((self.batch_size, self.seq_len, self.n_labels_r), dtype=int)
+        yn = np.empty((self.batch_size, self.seq_len, self.n_labels_n), dtype=int)
+        yb = np.empty((self.batch_size, self.seq_len, self.n_labels_b), dtype=int)
+
+        # Generate data
+        for i, ID in enumerate(list_IDs_temp):
+            with open(ID, 'rb') as f:
+                c_d, c_r, c_n, c_b = pickle.load(f)
+            # Store sample
+            X[i,]  = c_d
+            yr[i,] = c_r
+            yn[i,] = c_n
+            yb[i,] = c_b
+
+        X = X.reshape((*X.shape, 1))
+        return X, yr, yn, yb
 
 
 def functional_encoder(input_shape):
@@ -132,13 +140,13 @@ def define_callBacks(model_file):
     #metrics = Metrics()
     callbacks = [
         EarlyStopping(
-            monitor        = 'val_acc',
+            monitor        = 'root_acc',
             patience       = 10,
             mode           = 'max',
             verbose        = 1),
         ModelCheckpoint(model_file,
-            monitor        = 'val_acc',
-            save_best_only = True,
+            monitor        = 'root_acc',
+            save_best_only = False,
             mode           = 'max',
             verbose        = 0)#,
         #metrics
@@ -160,7 +168,9 @@ def define_callBacks(model_file):
 
 
 
-def load_data(path, averaged=False, seq_len=100):
+def split_data(path, averaged=False, seq_len=100, out_dir='./temp_data/'):
+
+
     root_labels = None
     notes_labels = None
     beats_labels = None
@@ -220,19 +230,48 @@ def load_data(path, averaged=False, seq_len=100):
                                                           shaped_notes_labels, shaped_beats_labels,
                                                           test_size=0.05)
 
-    train_d, test_d, train_r, test_r, train_n, test_n, train_b, test_b = split_data
+    train_d, val_d, train_r, val_r, train_n, val_n, train_b, val_b = split_data
 
-    print('train_d: {}, test_d: {}'.format(train_d.shape, test_d.shape))
-    print('train_r: {}, test_r: {}'.format(train_r.shape, test_r.shape))
-    print('train_n: {}, test_n: {}'.format(train_n.shape, test_n.shape))
-    print('train_b: {}, test_b: {}'.format(train_b.shape, test_b.shape))
-    return (train_d, test_d, train_r, test_r, train_n, test_n, train_b, test_b)
+    print('train_d: {}, val_d: {}'.format(train_d.shape, val_d.shape))
+    print('train_r: {}, val_r: {}'.format(train_r.shape, val_r.shape))
+    print('train_n: {}, val_n: {}'.format(train_n.shape, val_n.shape))
+    print('train_b: {}, val_b: {}'.format(train_b.shape, val_b.shape))
+
+    n_train = train_d.shape[0]
+    n_val = val_d.shape[0]
+
+    _makeTempDir(out_dir)
+    for i, data in enumerate(zip(train_d, train_r, train_n, train_b)):
+        t_d, t_r, t_n, t_b = data
+        curr_name = 'train_sample_' + str(i) + '.pkl'
+        curr_data = (t_d, t_r, t_n, t_b)
+        _save_pkl(curr_data, out_dir + '/' + curr_name)
+
+    for i, data in enumerate(zip(val_d, val_r, val_n, val_b)):
+        t_d, t_r, t_n, t_b = data
+        curr_name = 'validation_sample_' + str(i) + '.pkl'
+        curr_data = (t_d, t_r, t_n, t_b)
+        _save_pkl(curr_data, out_dir + curr_name)
+
+    return n_train, n_val
+
+def _makeTempDir(dirName):
+    if os.path.isdir(dirName):
+        return None
+    command = 'mkdir ' + dirName
+    os.system(command)
+    assert os.path.isdir(dirName)
 
 def _open_pickle(path):
     file = open(path, 'rb')
     data = pickle.load(file)
     file.close()
     return data
+
+def _save_pkl(data, filename):
+    file = open(filename, 'wb')
+    pickle.dump(data, file)
+    file.close()
 
 def _update_array(array, new_values, axis=1):
     if array is None:
