@@ -41,9 +41,9 @@ class SynchronizationData():
         if 'key' in json_data['sandbox'].keys():
             key = json_data['sandbox']['key']
         else:
-            key = None    
+            key = None
         info = {
-            'tunning': json_data['tuning'],
+            'tuning': json_data['tuning'],
             'metric': json_data['metre'],
             'key': key
         }
