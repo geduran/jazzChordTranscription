@@ -14,6 +14,8 @@ import sys
 import scipy.io.wavfile
 import numpy    as np
 import pandas   as pd
+from collections import deque
+
 
 # Own Code Imports
 sys.path.insert(0, '../')
@@ -35,21 +37,59 @@ class transcriptionData(SynchronizationData):
 
         self.dtw_results_path = dtw_results_path
 
+        self.root_coding =  deque([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
+        # Relative to C
+        self.type_template = {
+                                'maj' : deque([1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0]),
+                                '7'   : deque([1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0]),
+                                'min' : deque([1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0]),
+                                'hdim': deque([1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0]),
+                                'dim' : deque([1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0])
+                            }
 
-    def getCqtChoruses(self,audio_choruses, hop_len=1024):
+        self.rotation_index = {
+                                'C':  0,
+                                'C#': 1,
+                                'Db': 1,
+                                'D':  2,
+                                'D#': 3,
+                                'Eb': 3,
+                                'E':  4,
+                                'F':  5,
+                                'F#': 6,
+                                'Gb': 6,
+                                'G':  7,
+                                'G#': 8,
+                                'Ab': 8,
+                                'A':  9,
+                                'A#': 10,
+                                'Bb': 10,
+                                'B':  11,
+                                'Cb': 11
+                            }
+
+    def getCqtChoruses(self,audio_choruses, info, hop_len=1024, method='cqt'):
         """
             Gets the CQT of each chorus in audio_choruses. Returns A list in
             the same order that the input audio_choruses.
 
         """
-
+        tuning = info['tuning']
         cqt_choruses = []
 
         for curr_audio in audio_choruses:
-
-            curr_cqt = AudioData.getCQT(curr_audio, hop_len=hop_len)
-
+            if 'cqt' in method:
+                curr_cqt = AudioData.getCQT(curr_audio, hop_len=hop_len)
+            elif 'mel' in method:
+                newCqt1 = AudioData.getMelSpectrogram(curr_audio, hop_len=hop_len, win_len=2048, tuning_freq=tuning, n_bands=85)
+                newCqt2 = AudioData.getMelSpectrogram(curr_audio, hop_len=hop_len, win_len=4096, tuning_freq=tuning, n_bands=85)
+                newCqt3 = AudioData.getMelSpectrogram(curr_audio, hop_len=hop_len, win_len=8192, tuning_freq=tuning, n_bands=85)
+                curr_cqt = np.empty((newCqt1.shape[1], newCqt1.shape[0], 3), dtype=float)
+                curr_cqt[:,:,0] = newCqt1.T
+                curr_cqt[:,:,1] = newCqt2.T
+                curr_cqt[:,:,2] = newCqt3.T
+            # print('Shape del cqt: {}'.format(curr_cqt.shape))
             cqt_choruses.append(curr_cqt)
 
         return cqt_choruses
@@ -90,13 +130,124 @@ class transcriptionData(SynchronizationData):
 
         return final_chords
 
+    def alignChordsBeats(self, chords, chorus, song_info,
+                         sr=44100, hop_len=2048):
+
+        beats = list(np.array(chorus['beats']) - chorus['start'])
+        metric = song_info['metric']
+        num = int(metric.split('/')[0])
+        beat_labels = np.zeros((len(np.arange(0, 2*beats[-1] - beats[-2], hop_len/sr))), dtype=int)
+
+        assert len(chords.keys()) == len(beats)/num
+        # print('    arange beats len:  {}'.format(len(np.arange(0, 2*beats[-1] - beats[-2], hop_len/sr))))
+
+
+        # Dict of beat index and the corresponding chords
+        beat_chords = {}
+        for i in range(len(beats)):
+            beat_chords[i] = None
+
+        # assign chord to beat
+        beat_ind = 0
+        for _, curr_chords in chords.items():
+            n_chords = len(curr_chords)
+            if n_chords == 1:
+                beat_chords[beat_ind] = curr_chords[0]
+                beat_ind += num
+            elif n_chords == 2:
+                for i in [0, 1]:
+                    beat_chords[beat_ind] = curr_chords[i]
+                    beat_ind += int(num/2)
+            else:
+                for i in [0, 1, 2, 3]:
+                    beat_chords[beat_ind] = curr_chords[i]
+                    beat_ind += int(num/4)
+
+        chord_labels = []
+        beat_ind = 0
+        curr_chord = beat_chords[0]
+        beats.append(2*beats[-1] - beats[-2])
+        beat_labels[0] = 1
+        # print('beats[-4:] {}'.format(beats[-4:]))
+        for i, curr_time in enumerate(np.arange(0, beats[-1], hop_len/sr)):
+            # print('curr_time {}, curr_beat: {}, beat_ind {}, curr_chord: {}'.format(curr_time.round(2), beats[beat_ind].round(2), beat_ind, curr_chord))
+            chord_labels.append(curr_chord)
+
+
+            if curr_time >= beats[beat_ind]:
+                if i > 1:
+                    beat_labels[i+1] = 1
+                beat_ind += 1
+                if beat_chords[beat_ind-1] is  not None:
+                    curr_chord = beat_chords[beat_ind-1]
+
+        # for c_chord, c_beat in zip(chord_labels, beat_labels):
+        #     print('{} - {}'.format(c_chord, c_beat))
+
+        return chord_labels, beat_labels
+
+
+    def codeChordLabels(self, aligned_chords):
+        coded_root = np.zeros((13, len(aligned_chords)), dtype=int)
+        coded_notes = np.zeros((13, len(aligned_chords)), dtype=int)
+
+        for i, curr_chord in enumerate(aligned_chords):
+            root, type = curr_chord.split(':')
+
+            if 'N' != root:
+                rot_ind = self.rotation_index[root]
+                curr_root = self.root_coding.copy()
+                curr_root.rotate(rot_ind)
+                curr_notes = self.type_template[type].copy()
+                curr_notes.rotate(rot_ind)
+                curr_root.append(0)
+                curr_notes.append(0)
+            else:
+                curr_root = np.zeros((13))
+                curr_root[-1] = 1
+                curr_notes = np.zeros((13))
+                curr_notes[-1] = 1
+
+
+            root_list = list(curr_root.copy())
+            note_list = list(curr_notes.copy())
+
+            coded_root[:,i] = root_list
+            coded_notes[:,i] = note_list
+
+
+        # for i, curr_chord in enumerate(aligned_chords):
+        #     print('    Chord {}'.format(curr_chord))
+        #     print('        coded_root: {}'.format(coded_root[:,i]))
+        #     print('        coded_notes: {}'.format(coded_notes[:,i]))
+
+        return coded_root, coded_notes
+
+    def averageCqts(self, warped_cqts):
+        # print('input {} sequences of shape {}'.format(len(warped_cqts), warped_cqts[0].shape))
+        if len(warped_cqts[0].shape) < 3:
+            np_cqts = np.zeros((*warped_cqts[0].shape, len(warped_cqts)))
+            for i, curr_cqt in enumerate(warped_cqts):
+                np_cqts[:,:,i] = curr_cqt
+            averaged_cqts = np_cqts.mean(axis=2)
+        else:
+            averaged_cqts = np.zeros((*warped_cqts[0].shape[:2], 3))
+            for i in range(3):
+                np_cqts = np.zeros((*warped_cqts[0].shape[:2], len(warped_cqts)))
+                for j, curr_cqt in enumerate(warped_cqts):
+                    np_cqts[:,:,j] = curr_cqt[:,:,i]
+                averaged_cqts[:,:,i] = np_cqts.mean(axis=2)
+
+        # print('output has shape: {}'.format(averaged_cqts.shape))
+        return averaged_cqts
+
     def _simplifyChord(self, chord):
         splitted_chords = chord.rstrip().lstrip().split(' ')
         corrected_chord = []
 
         for curr_chord in splitted_chords:
             if ':' in curr_chord:
-                root = curr_chord.split(':')[0]
+                root = curr_chord.split(':')[0].split('/')[0]
                 if 'hdim' in curr_chord:
                     corrected_chord.append(root + ':hdim')
                 elif 'dim' in curr_chord:
@@ -108,10 +259,12 @@ class transcriptionData(SynchronizationData):
                 else:
                     corrected_chord.append(root + ':maj')
             else:
-                print('  this has no descprition...')
-                corrected_chord.append(curr_chord + ':maj')
+                # print('  this has no descprition...')
+                root = curr_chord.split('/')[0].replace(' ', '')
+                if len(root):
+                    corrected_chord.append(root + ':maj')
 
-        print('    Chord {} ---> {}'.format(chord, corrected_chord))
+        # print('    Chord {} ---> {}'.format(chord, corrected_chord))
         return corrected_chord
 
 
@@ -160,20 +313,35 @@ class transcriptionData(SynchronizationData):
         """
 
         expand, compress = self._getExpandCompress(path)
-        newCqt = cqt.copy()
+        #newCqt = cqt.copy()
+        if len(cqt.shape) < 3:
+            newCqt = self._expandCompressCqt(cqt, expand, compress)
+        else:
+            currCqt1 = self._expandCompressCqt(cqt[:,:,0], expand, compress)
+            currCqt2 = self._expandCompressCqt(cqt[:,:,1], expand, compress)
+            currCqt3 = self._expandCompressCqt(cqt[:,:,2], expand, compress)
+            newCqt = np.empty((*currCqt1.shape, 3), dtype=float)
+            newCqt[:,:,0] = currCqt1
+            newCqt[:,:,1] = currCqt2
+            newCqt[:,:,2] = currCqt3
 
+        # print('Shape del cqt warped: {}'.format(newCqt.shape))
+
+        return newCqt
+
+    def _expandCompressCqt(self, cqt, expand, compress):
         for index, times in reversed(sorted(compress.items())):
-            cols = newCqt[:, index:index+times+1]
-            newCqt = np.delete(newCqt, range(index, index+times+1), 1)
+            cols = cqt[:, index:index+times+1]
+            cqt = np.delete(cqt, range(index, index+times+1), 1)
             meanCols = np.mean(cols, axis=1)
-            newCqt = np.insert(newCqt, index, meanCols, axis=1)
+            cqt = np.insert(cqt, index, meanCols, axis=1)
 
         expand = self._updateExpandIndexes(expand, compress)
 
         for index, times in reversed(sorted(expand.items())):
 
-            if index < newCqt.shape[1] - 2:
-                nc = newCqt[:, index:index+2].T
+            if index < cqt.shape[1] - 2:
+                nc = cqt[:, index:index+2].T
                 repCol = scipy.interpolate.pchip_interpolate(np.linspace(0,
                                                                    nc.shape[0],
                                                                    nc.shape[0]),
@@ -182,13 +350,13 @@ class transcriptionData(SynchronizationData):
                                                                    nc.shape[0],
                                                                    nc.shape[0] +
                                                                    times))
-                newCqt = np.insert(newCqt, index, repCol[1:-1, :], axis=1)
+                cqt = np.insert(cqt, index, repCol[1:-1, :], axis=1)
             else:
                 for _ in range(times):
-                    repCol = newCqt[:,index]
-                    newCqt = np.insert(newCqt, index, repCol, axis=1)
+                    repCol = cqt[:,index]
+                    cqt = np.insert(cqt, index, repCol, axis=1)
 
-        return newCqt
+        return cqt
 
     def _getExpandCompress(self, path):
         """
