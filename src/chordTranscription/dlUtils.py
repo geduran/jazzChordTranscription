@@ -73,26 +73,27 @@ import os
 
 
 def functional_encoder(input_shape):
+    print('En functional_encoder input_shape: {}'.format(input_shape))
 
     input = Input(shape=input_shape)
 
     conv1 = Conv2D(4,  kernel_size=(5, 5), padding='same',
-                   activation='relu')(input)
+                   activation='relu', data_format='channels_last')(input)
 
     conv1_bn = BatchNormalization()(conv1)
 
     conv2 = Conv2D(4,  kernel_size=(3, 3), padding='same',
-                   activation='relu')(conv1_bn)
+                   activation='relu', data_format='channels_last')(conv1_bn)
 
     conv2_bn = BatchNormalization()(conv2)
 
     conv3 = Conv2D(1,  kernel_size=1, padding='same',
-                   activation='relu')(conv2_bn)
+                   activation='relu', data_format='channels_last')(conv2_bn)
 
     conv3_bn = BatchNormalization()(conv3)
 
     conv4 = Conv2D(24, (1, int(conv1.shape[2])), padding='valid',
-                   activation='relu')(conv3_bn)
+                   activation='relu', data_format='channels_last')(conv3_bn)
 
     conv4_bn = BatchNormalization()(conv4)
 
@@ -123,6 +124,7 @@ def functional_encoder(input_shape):
                   metrics=['accuracy'])
 
     model.summary()
+    return model
 
 
 
@@ -241,4 +243,8 @@ def _update_array(array, new_values, axis=1):
 
 
 
+
+#
+# input_shape = (None, 84, 1)
+# functional_encoder(input_shape)
 #

@@ -27,8 +27,9 @@ callbacks    = define_callBacks(model_paths + best_model)
 epochs        = 100
 n_hidden      = 60
 batch_size    = 128
+seq_len       = 100
 
-train_d, test_d, train_r, test_r, train_n, test_n, train_b, test_b = load_data(data_path)
+train_d, test_d, train_r, test_r, train_n, test_n, train_b, test_b = load_data(data_path, seq_len=seq_len)
 
 num_features = train_d.shape[2]
 
@@ -36,21 +37,18 @@ input_shape  = (None, num_features, 1)
 
 model =  functional_encoder(input_shape)
 
-history = model.fit(train_d, {'root': train_r,
-                             'notes': train_n,
-                             'beats': train_b},
-                  batch_size      = batch_size,
-                	validation_data=(test_d,
-                		    {'root': test_r,
-                             'notes': test_n,
-                             'beats': test_b}),
-                  epochs=epochs,
-                  verbose=1,
-                  shuffle   = True,
-                  callbacks = callbacks)
+# history = model.fit(train_d, {'root': train_r,
+#                              'notes': train_n,
+#                              'beats': train_b},
+#                   batch_size      = batch_size,
+#                 	validation_data=(test_d,
+#                 		    {'root': test_r,
+#                              'notes': test_n,
+#                              'beats': test_b}),
+#                   epochs=epochs,
+#                   verbose=1,
+#                   shuffle   = True,
+#                   callbacks = callbacks)
 
-
-
-#
 
 # model.save_weights(model_paths + last_model)
