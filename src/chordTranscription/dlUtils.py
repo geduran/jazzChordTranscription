@@ -9,8 +9,9 @@ from   keras.callbacks      import ModelCheckpoint, EarlyStopping, Callback
 from   keras.utils.np_utils import to_categorical
 import keras.backend as K
 import tensorflow as tf
-from sklearn.metrics import confusion_matrix, precision_score, f1_score, recall_score
+from   sklearn.metrics import confusion_matrix, precision_score, f1_score, recall_score
 import sklearn.model_selection
+from   collections import deque
 import random
 import pickle
 import glob
@@ -100,7 +101,8 @@ def functional_encoder(input_shape):
 
     conv3_bn = BatchNormalization()(conv3)
 
-    conv4 = Conv2D(24, (1, int(conv1.shape[2])), padding='valid',
+    # For root and notes
+    conv4 = Conv2D(42, (1, int(conv1.shape[2])), padding='valid',
                    activation='relu', data_format='channels_last')(conv3_bn)
 
     conv4_bn = BatchNormalization()(conv4)
@@ -113,7 +115,17 @@ def functional_encoder(input_shape):
 
     notes_output = TimeDistributed(Dense(13, activation='sigmoid'), name='notes')(gru1)
 
-    gru2 = Bidirectional(GRU(64, return_sequences=True))(sq_conv4)
+    # For beats
+    conv5 = Conv2D(1,  kernel_size=(7, 3), padding='same',
+                   activation='relu', data_format='channels_last')(conv3_bn)
+
+    conv5_bn = BatchNormalization()(conv5)
+
+    # conv5_mp = MaxPooling2D(pool_size=(1,2), data_format='channels_last')(conv5_bn)
+
+    sq_conv5 = Lambda(lambda x: K.squeeze(x, axis=3))(conv5_bn)
+
+    gru2 = Bidirectional(GRU(64, return_sequences=True))(sq_conv5)
 
     beat_output = TimeDistributed(Dense(2, activation='softmax'), name='beats')(gru2)
 
@@ -131,7 +143,7 @@ def functional_encoder(input_shape):
                   loss= losses,
                   metrics=['accuracy'])
 
-    model.summary()
+    # model.summary()
     return model
 
 
@@ -283,7 +295,188 @@ def _update_array(array, new_values, axis=1):
 
 
 
-#
+
+class chordEval:
+    def __init__(self, ):
+        self.root_coding =  deque([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+
+        # Relative to C
+        self.type_template = {
+                                'maj' : deque([1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0]),
+                                '7'   : deque([1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0]),
+                                'min' : deque([1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0]),
+                                'hdim': deque([1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0]),
+                                'dim' : deque([1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0])
+                            }
+
+        self.rotation_index = {
+                                'C':  0,
+                                'C#': 1,
+                                'C#/Db': 1,
+                                'Db': 1,
+                                'D':  2,
+                                'D#': 3,
+                                'D#/Eb': 3,
+                                'Eb': 3,
+                                'E':  4,
+                                'F':  5,
+                                'F#': 6,
+                                'F#/Gb': 6,
+                                'Gb': 6,
+                                'G':  7,
+                                'G#': 8,
+                                'G#/Ab': 8,
+                                'Ab': 8,
+                                'A':  9,
+                                'A#': 10,
+                                'A#/Bb': 10,
+                                'Bb': 10,
+                                'B':  11,
+                                'B/Cb':  11,
+                                'Cb': 11
+                            }
+
+        self.root_map = {
+                            0:'C',
+                            1:'C#/Db',
+                            2:'D',
+                            3:'D#/Eb',
+                            4:'E',
+                            5:'F',
+                            6:'F#/Gb',
+                            7:'G',
+                            8:'G#/Ab',
+                            9:'A',
+                            10:'A#/Bb',
+                            11:'B/Cb',
+                            12:'N'
+                        }
+        self.notes_map = {
+                            'maj':  0,
+                            '7':    1,
+                            'min':  2,
+                            'hdim': 3,
+                            'dim':  4
+                         }
+
+    def beat_predictions(self, p_beat):
+        beats = np.zeros((p_beat.shape[1]))
+        if len(p_beat.shape) > 2:
+            p_beat = np.squeeze(p_beat, axis=0)
+        for i in range(len(beats)):
+            beats[i] = np.argmax(p_beat[i ,:])
+
+        return beats
+
+    def root_predictions(self, p_root):
+        if len(p_root.shape) > 2:
+            p_root = np.squeeze(p_root, axis=0)
+        a,b = p_root.shape
+        if a < b:
+            p_root = p_root.T
+
+        roots = np.zeros((np.max(p_root.shape)))
+
+        for i in range(len(roots)):
+            roots[i] = np.argmax(p_root[i ,:])
+        return roots
+
+    def root_name(self, coded_roots):
+        roots = []
+        for ind in coded_roots:
+            roots.append(self.root_map[ind])
+        return roots
+
+    def chord_type_greedy(self, roots, notes, thres=0.2, interm=False):
+        if len(notes.shape) > 2:
+            notes = np.squeeze(notes, axis=0)
+        else:
+            notes = notes.T
+
+        notes[notes < thres] = 0
+        chord_types = []
+        type_names = []
+
+        for root, curr_notes in zip(roots, notes):
+            root = int(root)
+
+            curr_name, curr_type = self._get_expected_chord(root, curr_notes)
+            chord_types.append(curr_type)
+            type_names.append(curr_name)
+            # print('curr root: {}, curr type: {}'.format(root, curr_name))
+
+        return type_names, chord_types
+
+    def _get_expected_chord(self, root, notes, interm=False):
+        # Gets the chord type that maximizes the prob f the predicted root
+
+        if np.argmax(notes) == 12:
+            #print('Max is 12!: {}'.format(notes))
+            return 'None', 5
+
+        used_notes = notes[:-1]
+
+        curr_max = 0
+        curr_type_name = ''
+        curr_type = None
+
+        for i, itms in enumerate(self.type_template.items()):
+            type, content = itms
+            content = content.copy()
+            content.rotate(root)
+            curr_value = np.dot(np.array(list(content)), used_notes)
+
+            if curr_value > curr_max:
+                curr_max = curr_value
+                curr_type_name = type
+                curr_type = i
+
+        if interm:
+            return curr_type_name, curr_type, curr_max
+        else:
+            return curr_type_name, curr_type
+
+
+    def _get_expected_root_chords(self, roots, notes):
+        # Get the combination root-chord type that maximizes the probability.
+
+        if np.argmax(notes) == 12:
+            #print('Max is 12!: {}'.format(notes))
+            return 12, 'None', 5
+        max_val = 0
+        curr_info = None
+        for root in range(12):
+            type_name, curr_type, curr_val = self._get_expected_chord(root, notes,
+                                                                    interm=True)
+            curr_val *= roots[root]
+            if curr_val > max_val:
+                max_val = curr_val
+                curr_info = (root, type_name, curr_type)
+
+        return curr_info
+
+    def chord_type_all(self, roots,  notes, thres=0.2):
+        # Get the sequence of predicted root-chors type that maximizes probability
+
+        if len(notes.shape) > 2:
+            notes = np.squeeze(notes, axis=0)
+        else:
+            notes = notes.T
+        roots = np.squeeze(roots, axis=0)
+
+        notes[notes < thres] = 0
+
+        pred_roots = []
+        names = []
+        types = []
+
+        for pred_root, curr_notes in zip(roots, notes):
+            curr_root, curr_name, curr_type = self._get_expected_root_chords(pred_root, curr_notes)
+            pred_roots.append(curr_root)
+            names.append(curr_name)
+            types.append(curr_type)
+
+        return pred_roots, names, types
 # input_shape = (None, 84, 1)
 # functional_encoder(input_shape)
 #
