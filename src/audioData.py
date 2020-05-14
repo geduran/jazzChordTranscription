@@ -266,6 +266,20 @@ class AudioData:
                               tuning=tuning))
         return C
 
+    @staticmethod
+    def getMelSpectrogram(audio, hop_len, win_len, sr=44100, tuning_freq=440.0,
+                          n_bands=90, fmin=20, fmax=6000):
+
+        audioFrame = madmom.audio.signal.FramedSignal(audio,
+                                                      frame_size=win_len,
+                                                      hop_size=hop_len,
+                                                      sample_rate=sr)
+        mel_spec = madmom.audio.FilteredSpectrogram(audioFrame,
+                                        filterbank=MelFilterbank, num_bands=n_bands,
+                                        fmin=fmin, fmax=fmax)
+
+        return mel_spec
+
     def get_HFC(self, win_len=None, hop_len=None, S=None, y=None):
         if not S.any() and y.any() and hop_len and win_len:
             S, _ = librosa.magphase(librosa.core.stft(y=y,
