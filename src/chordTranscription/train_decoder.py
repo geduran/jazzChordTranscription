@@ -34,7 +34,7 @@ n_labels = 61
 
 
 
-# decoder_split_data(data_path,  out_dir=data_temp_dir)
+decoder_split_data(data_path,  out_dir=data_temp_dir)
 
 training_filenames = glob.glob(data_temp_dir + '*train*.pkl')
 validation_filenames = glob.glob(data_temp_dir + '*validation*.pkl')
