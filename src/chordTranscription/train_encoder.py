@@ -4,7 +4,7 @@ import numpy         as     np
 import tensorflow    as     tf
 from   keras         import backend as K
 from   keras.backend import tensorflow_backend
-from   dlUtils       import functional_encoder, define_callBacks, split_data, DataGenerator
+from   dlUtils       import functional_encoder, define_callBacks, encoder_split_data, EncoderDataGenerator
 
 
 # tensorflow configuration
@@ -16,8 +16,8 @@ tensorflow_backend.set_session(session)
 
 method = 'cqt'
 model_paths = '../../models/chordTranscription/'
-data_path = '../../data/JAAH/chordTranscription/' + method + '/'
-data_temp_dir = './temp_data/'
+data_path = '../../data/JAAH/chordTranscription/encoder/' + method + '/'
+data_temp_dir = './temp_data_encoder/'
 
 best_model    = 'encoder_'+method+'_{epoch:02d}.h5'
 last_model    = 'encoder_'+method+'_last.h5'
@@ -26,7 +26,7 @@ last_model    = 'encoder_'+method+'_last.h5'
 callbacks    = define_callBacks(model_paths + best_model)
 
 epochs         = 40
-n_hidden       = 60
+# n_hidden       = 60
 batch_size     = 128
 seq_len        = 50
 num_features   = 84
@@ -36,12 +36,12 @@ n_labels_beats = 2
 
 
 
-n_train_samples, n_val_samples = split_data(data_path, seq_len=seq_len, out_dir=data_temp_dir)
+n_train_samples, n_val_samples = encoder_split_data(data_path, seq_len=seq_len, out_dir=data_temp_dir)
 
 training_filenames = glob.glob(data_temp_dir + '*train*.pkl')
 validation_filenames = glob.glob(data_temp_dir + '*validation*.pkl')
-my_training_batch_generator   = DataGenerator(training_filenames,   batch_size=batch_size, seq_len=seq_len, num_features=num_features)
-my_validation_batch_generator = DataGenerator(validation_filenames, batch_size=batch_size, seq_len=seq_len, num_features=num_features)
+my_training_batch_generator   = EncoderDataGenerator(training_filenames,   batch_size=batch_size, seq_len=seq_len, num_features=num_features)
+my_validation_batch_generator = EncoderDataGenerator(validation_filenames, batch_size=batch_size, seq_len=seq_len, num_features=num_features)
 
 
 
