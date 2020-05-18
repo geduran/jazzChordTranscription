@@ -55,6 +55,10 @@ for curr_song in train_songs:
     gt_notes = data['notes_labels']
     gt_beats = to_categorical(data['beats_labels']).T
 
+    name_root = CE.root_name(CE.root_predictions(gt_root))
+    name_chord, _ = CE.chord_type_greedy(CE.root_predictions(gt_root), gt_notes)
+
+
     for i_, curr_data in enumerate(all_data):
         print('train Song {}, chorus {}'.format(curr_song.split('/')[-1], i_) , end='                    \r')
         train_data = np.zeros((1, *curr_data.T.shape, 1))
@@ -65,8 +69,9 @@ for curr_song in train_songs:
 
         file_name = curr_song.split('/')[-1].split('.')[0] + '_' + str(i_) + '.pkl'
 
-        out_data = {'latent_feaures': (r_pred, n_pred, b_pred),
-                    'labels': (gt_root, gt_notes, gt_beats)}
+        out_data = {'latent_features': (r_pred, n_pred, b_pred),
+                    'labels': (gt_root, gt_notes, gt_beats),
+                    'name_labels': (name_root, name_chord)}
 
         f = open(interm_data_path + file_name, 'wb')
         pickle.dump(out_data, f)
