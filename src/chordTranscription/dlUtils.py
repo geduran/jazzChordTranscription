@@ -1,6 +1,6 @@
 import numpy                as np
 import keras
-from   keras.models         import Model
+from   keras.models         import Model, Sequential
 from   keras.layers         import Dense, Conv2D, Flatten, Activation, Dropout
 from   keras.layers         import regularizers, MaxPooling2D, Lambda
 from   keras.layers         import GRU, LSTM, SimpleRNN, BatchNormalization
@@ -19,7 +19,7 @@ import os
 
 
 
-class DataGenerator(keras.utils.Sequence):
+class EncoderDataGenerator(keras.utils.Sequence):
     'Generates data for Keras'
     def __init__(self, list_IDs, batch_size=32, seq_len=100, num_features=84, n_channels=1,
                  shuffle=True, labels_r_classes=13, labels_n_classes=13, labels_b_classes=2):
@@ -79,6 +79,55 @@ class DataGenerator(keras.utils.Sequence):
 
         X = X.reshape((*X.shape, 1))
         return X, yr, yn, yb
+
+
+
+
+class DecoderDataGenerator(keras.utils.Sequence):
+    'Generates data for Keras'
+    def __init__(self, list_IDs, batch_size=1, seq_len=None, num_features=26, n_channels=1,
+                 shuffle=True, n_labels=61):
+        'Initialization'
+        self.seq_len = seq_len
+        self.num_features = num_features
+        self.batch_size = batch_size
+        self.list_IDs = list_IDs
+        self.n_labels = n_labels
+        self.shuffle = shuffle
+        self._n_samples = len(list_IDs)
+        self.on_epoch_end()
+
+    def __len__(self):
+        'Denotes the number of batches per epoch'
+        return self._n_samples
+
+    def __getitem__(self, index):
+        'Generate one batch of data'
+
+        # Current index
+        curr_index = self.indexes[index]
+
+        # Generate data
+        X, labels = self.__data_generation(self.list_IDs[curr_index])
+
+        return X, labels
+
+    def on_epoch_end(self):
+        'Updates indexes after each epoch'
+        self.indexes = np.arange(len(self.list_IDs))
+        if self.shuffle == True:
+            np.random.shuffle(self.indexes)
+
+    def __data_generation(self, ID_temp):
+        'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
+
+        # Generate data
+        with open(ID_temp, 'rb') as f:
+            X, Y = pickle.load(f)
+
+        # X = X.reshape((*X.shape, 1))
+        return X, Y
+
 
 
 def functional_encoder(input_shape):
@@ -147,6 +196,35 @@ def functional_encoder(input_shape):
     return model
 
 
+def functional_decoder(input_shape):
+
+    RNN_type = GRU
+
+    #Start Neural Network
+    model = Sequential()
+
+    model.add(Bidirectional(RNN_type(124, return_sequences=True),
+                            input_shape=input_shape))
+
+    model.add(Bidirectional(RNN_type(124, return_sequences=True)))
+
+    # model.add(RNN_type(n_hidden, return_sequences=True,
+    #           input_shape=input_shape))
+    # model.add(RNN_type(n_hidden, return_sequences=True))
+    # model.add(Dropout(0.5))
+
+
+    model.add(TimeDistributed(Dense(61, activation='softmax')))
+
+
+    model.compile(loss        = keras.losses.categorical_crossentropy,
+                  optimizer   = 'adam',
+                  metrics     = ['accuracy'])
+
+#    model.summary()
+
+    return model
+
 
 def define_callBacks(model_file):
     #metrics = Metrics()
@@ -180,7 +258,7 @@ def define_callBacks(model_file):
 
 
 
-def split_data(path, averaged=False, seq_len=100, out_dir='./temp_data/'):
+def encoder_split_data(path, averaged=False, seq_len=100, out_dir='./temp_data_encoder/'):
 
 
     root_labels = None
@@ -293,7 +371,95 @@ def _update_array(array, new_values, axis=1):
         return array
 
 
+def encode_labels(gt_root, gt_notes):
+    root_ind = {
+                    'C':  0,
+                    'C#': 1,
+                    'C#/Db': 1,
+                    'Db': 1,
+                    'D':  2,
+                    'D#': 3,
+                    'D#/Eb': 3,
+                    'Eb': 3,
+                    'E':  4,
+                    'F':  5,
+                    'F#': 6,
+                    'F#/Gb': 6,
+                    'Gb': 6,
+                    'G':  7,
+                    'G#': 8,
+                    'G#/Ab': 8,
+                    'Ab': 8,
+                    'A':  9,
+                    'A#': 10,
+                    'A#/Bb': 10,
+                    'Bb': 10,
+                    'B':  11,
+                    'B/Cb':  11,
+                    'Cb': 11
+                }
+    chord_ind = {
+                    'maj':  0,
+                    '7':    1,
+                    'min':  2,
+                    'hdim': 3,
+                    'dim':  4
+                 }
 
+    chord_classes = len(chord_ind.keys())
+    class_numbers = []
+    for root, chord in zip(gt_root, gt_notes):
+        if 'N' in root:
+            class_numbers.append(60)
+        else:
+            curr_class = chord_classes*root_ind[root] + chord_ind[chord]
+            class_numbers.append(curr_class)
+    return class_numbers
+
+def decoder_split_data(path, out_dir='./temp_data_decoder/'):
+
+    _makeTempDir(out_dir)
+    all_files = glob.glob(path+'*pkl')
+    song_names = set()
+
+    for curr_file in all_files:
+        song_names.add(curr_file.split('2048')[0])
+
+    validation_songs = random.sample(song_names, 2)
+
+    for curr_song in song_names:
+        all_choruses = None
+        song_name = curr_song.split('/')[-1]
+        print(song_name)
+
+        for i in range(200):
+            # print('    i: ' + str(i))
+            curr_name = curr_song + '2048_' + str(i)+ '.pkl'
+            if not os.path.isfile(curr_name):
+                break
+            curr_data = _open_pickle(curr_name)
+            r_pred, n_pred, b_pred = curr_data['latent_features']
+            gt_roots, gt_chords = curr_data['name_labels']
+            class_labels = encode_labels(gt_roots, gt_chords)
+            # print('       latent_features: {}'.format(r_pred.shape))
+            if all_choruses is None:
+                all_choruses = np.concatenate((r_pred, n_pred), axis=2)
+            else:
+                curr_choruses = np.concatenate((r_pred, n_pred), axis=2)
+                all_choruses = np.concatenate((all_choruses, curr_choruses), axis=0)
+            # print('        all_choruses: {}'.format(all_choruses.shape))
+
+        averaged_choruses = np.mean(all_choruses, axis=0).reshape((1, all_choruses.shape[1], all_choruses.shape[2]))
+        class_labels = to_categorical(class_labels, num_classes=61)
+        class_labels  = class_labels.reshape((1, *class_labels.shape))
+        # print('    averaged_choruses: {}'.format(averaged_choruses.shape))
+
+        data = (averaged_choruses, class_labels)
+        if curr_song in validation_songs:
+            filename = out_dir + song_name + '2048_validation.pkl'
+        else:
+            filename = out_dir + song_name + '2048_train.pkl'
+        _save_pkl(data, filename)
 
 
 class chordEval:
