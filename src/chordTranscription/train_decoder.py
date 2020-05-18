@@ -15,7 +15,7 @@ session = tf.Session(config=config)
 tensorflow_backend.set_session(session)
 
 method = 'cqt'
-model_paths = '../../models/chordTranscription/'
+model_paths = '../../models/chordTranscription/decoder/'
 data_path = '../../data/JAAH/chordTranscription/intermediate/' + method + '/'
 data_temp_dir = './temp_data_decoder/'
 
