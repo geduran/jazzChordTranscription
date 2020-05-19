@@ -1,0 +1,14 @@
+
+For Model encoder_best__results.txt
+    Roots_greedy
+        accuracy: 0.94
+    Roots
+        accuracy: 0.93
+    Notes_greedy
+        accuracy: 0.57
+    Notes
+        accuracy: 0.57
+    Beats
+        accuracy: 0.97
+        precision: 0.93
+        recall: 0.86

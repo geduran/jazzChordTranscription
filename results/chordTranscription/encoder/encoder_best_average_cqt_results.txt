@@ -1,0 +1,14 @@
+
+For Model encoder_best_average_cqt_results.txt
+    Roots_greedy
+        accuracy: 0.83
+    Roots
+        accuracy: 0.83
+    Notes_greedy
+        accuracy: 0.53
+    Notes
+        accuracy: 0.53
+    Beats
+        accuracy: 0.88
+        precision: 0.58
+        recall: 0.50

@@ -1,0 +1,14 @@
+
+For Model encoder_best_average_latent_features_results.txt
+    Roots_greedy
+        accuracy: 0.97
+    Roots
+        accuracy: 0.97
+    Notes_greedy
+        accuracy: 0.58
+    Notes
+        accuracy: 0.58
+    Beats
+        accuracy: 0.99
+        precision: 1.00
+        recall: 0.93
