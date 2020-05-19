@@ -2,7 +2,7 @@ import numpy                as np
 import keras
 from   keras.models         import Model, Sequential
 from   keras.layers         import Dense, Conv2D, Flatten, Activation, Dropout
-from   keras.layers         import regularizers, MaxPooling2D, Lambda
+from   keras.layers         import regularizers, MaxPooling2D, Lambda, Concatenate
 from   keras.layers         import GRU, LSTM, SimpleRNN, BatchNormalization
 from   keras.layers         import Bidirectional, TimeDistributed, Input
 from   keras.callbacks      import ModelCheckpoint, EarlyStopping, Callback
@@ -126,7 +126,7 @@ class DecoderDataGenerator(keras.utils.Sequence):
         with open(ID_temp, 'rb') as f:
             X, Y = pickle.load(f)
 
-        # X = X.reshape((*X.shape, 1))
+        X = X.reshape((*X.shape, 1))
         return X, Y
 
 
@@ -197,34 +197,72 @@ def functional_encoder(input_shape):
     return model
 
 
-def functional_decoder(input_shape):
-
-    RNN_type = GRU
-
-    #Start Neural Network
-    model = Sequential()
-
-    model.add(Bidirectional(RNN_type(124, return_sequences=True),
-                            input_shape=input_shape))
-
-    model.add(Bidirectional(RNN_type(124, return_sequences=True)))
-
-    # model.add(RNN_type(n_hidden, return_sequences=True,
-    #           input_shape=input_shape))
-    # model.add(RNN_type(n_hidden, return_sequences=True))
-    # model.add(Dropout(0.5))
+def functional_decoder(input_shape, n_hidden, n_labels):
 
 
-    model.add(TimeDistributed(Dense(61, activation='softmax')))
+    input = Input(shape=input_shape)
+
+    conv1 = Conv2D(4,  kernel_size=(21, 1), padding='same',
+                   activation='relu', data_format='channels_last')(input)
+
+    conv1_bn = BatchNormalization()(conv1)
+
+    conv2 = Conv2D(1,  kernel_size=1, padding='same',
+                   activation='relu', data_format='channels_last')(conv1_bn)
+
+    conv2_bn = BatchNormalization()(conv2)
 
 
-    model.compile(loss        = keras.losses.categorical_crossentropy,
-                  optimizer   = 'adam',
-                  metrics     = ['accuracy'])
+    concat = Concatenate(axis=2)([input, conv2_bn])
 
-#    model.summary()
 
+    sq_concat = Lambda(lambda x: K.squeeze(x, axis=3))(concat)
+
+    gru1 = Bidirectional(GRU(n_hidden, return_sequences=True))(sq_concat)
+
+    gru2 = Bidirectional(GRU(n_hidden, return_sequences=True))(gru1)
+
+    chord_output = TimeDistributed(Dense(n_labels, activation='softmax'))(gru2)
+
+
+    model = Model(inputs=input, outputs=chord_output)
+
+    model.compile(optimizer='adam',
+                  loss= 'categorical_crossentropy',
+                  metrics=['accuracy'])
+
+    # model.summary()
     return model
+
+
+
+#
+#     RNN_type = GRU
+#
+#     #Start Neural Network
+#     model = Sequential()
+#
+#     model.add(Bidirectional(RNN_type(124, return_sequences=True),
+#                             input_shape=input_shape))
+#
+#     model.add(Bidirectional(RNN_type(124, return_sequences=True)))
+#
+#     # model.add(RNN_type(n_hidden, return_sequences=True,
+#     #           input_shape=input_shape))
+#     # model.add(RNN_type(n_hidden, return_sequences=True))
+#     # model.add(Dropout(0.5))
+#
+#
+#     model.add(TimeDistributed(Dense(61, activation='softmax')))
+#
+#
+#     model.compile(loss        = keras.losses.categorical_crossentropy,
+#                   optimizer   = 'adam',
+#                   metrics     = ['accuracy'])
+#
+# #    model.summary()
+#
+#     return model
 
 
 def encoder_callBacks(model_file):
