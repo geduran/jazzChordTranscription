@@ -4,7 +4,7 @@ import numpy         as     np
 import tensorflow    as     tf
 from   keras         import backend as K
 from   keras.backend import tensorflow_backend
-from   dlUtils       import functional_encoder, define_callBacks, encoder_split_data, EncoderDataGenerator
+from   dlUtils       import functional_encoder, encoder_callBacks, encoder_split_data, EncoderDataGenerator
 
 
 # tensorflow configuration
@@ -23,7 +23,7 @@ best_model    = 'encoder_'+method+'_{epoch:02d}.h5'
 last_model    = 'encoder_'+method+'_last.h5'
 
 # prepare callbacks
-callbacks    = define_callBacks(model_paths + best_model)
+callbacks    = encoder_callBacks(model_paths + best_model)
 
 epochs         = 40
 # n_hidden       = 60
