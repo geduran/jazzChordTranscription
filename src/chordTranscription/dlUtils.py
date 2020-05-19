@@ -7,11 +7,12 @@ from   keras.layers         import GRU, LSTM, SimpleRNN, BatchNormalization
 from   keras.layers         import Bidirectional, TimeDistributed, Input
 from   keras.callbacks      import ModelCheckpoint, EarlyStopping, Callback
 from   keras.utils.np_utils import to_categorical
-import keras.backend as K
-import tensorflow as tf
-from   sklearn.metrics import confusion_matrix, precision_score, f1_score, recall_score
+import keras.backend        as K
+import tensorflow           as tf
+from   sklearn.metrics      import confusion_matrix, precision_score, f1_score, recall_score
 import sklearn.model_selection
-from   collections import deque
+from   collections          import deque
+import pandas               as     pd
 import random
 import pickle
 import glob
@@ -480,6 +481,11 @@ def decoder_split_data(path, out_dir='./temp_data_decoder/'):
 
 class chordEval:
     def __init__(self, ):
+        self.roots = ['C', 'C#/Db', 'D', 'D#/Eb', 'E', 'F', 'F#/Gb', 'G',
+                      'G#/Ab', 'A', 'A#/Bb', 'B/Cb', 'N']
+
+        self.chord_types = ['maj', '7', 'min', 'hdim', 'dim']
+
         self.root_coding =  deque([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
         # Relative to C
@@ -661,11 +667,44 @@ class chordEval:
         return pred_roots, names, types
 
 
+    def get_conf_matrix(self, true, pred, labels):
+        if isinstance(labels, tuple):
+            roots = labels[0]
+            chords = labels[1]
+            labels = []
+            for root in roots[:-1]:
+                for chord in chords:
+                    labels.append(root+chord)
+            labels.append('N')
+
+        matrix = confusion_matrix(true, pred, labels=labels, normalize='true')
+        matrix = np.around(np.multiply(matrix, 100), decimals=2)
+        df_roots = pd.DataFrame(matrix, columns=labels, index = labels)
+        df_roots.index.name = 'Ground Truth'
+        df_roots.columns.name = 'Predicted'
+        return df_roots
+
+    def to_chord_label(self, labels):
+        label_map = {}
+        i = 0
+        for root in self.roots[:-1]:
+            for chord in self.chord_types:
+                label_map[i] = root+':'+chord
+                i += 1
+        label_map[i] = 'N:N'
+
+        out_labels = []
+
+        for label in labels:
+            out_labels.append(label_map[label])
+
+        return out_labels
+
     def from_categorical(self, array):
         output = []
         for i in array:
             output.append(np.argmax(i))
-        return output    
+        return output
 # input_shape = (None, 84, 1)
 # functional_encoder(input_shape)
 #

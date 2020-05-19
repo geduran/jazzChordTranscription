@@ -5,6 +5,8 @@ import pickle
 import numpy         as     np
 import tensorflow    as     tf
 import matplotlib.pyplot as plt
+import seaborn       as     sn
+import pandas        as     pd
 from   keras         import backend as K
 from sklearn.metrics import accuracy_score
 from   keras.backend import tensorflow_backend
@@ -38,7 +40,7 @@ input_shape  = (None, num_features)
 
 model = functional_decoder(input_shape)
 model.load_weights(model_paths + model_name)
-model.summary()
+# model.summary()
 
 CE = chordEval()
 
@@ -95,14 +97,86 @@ for curr_song in song_names:
 
 
 all_predictions = CE.from_categorical(all_predictions)
+all_predictions = CE.to_chord_label(all_predictions)
+all_gt = CE.to_chord_label(all_gt)
 acc = accuracy_score(all_gt, all_predictions)
 
 all_predictions_averaged = CE.from_categorical(all_predictions_averaged)
+all_predictions_averaged = CE.to_chord_label(all_predictions_averaged)
+all_gt_averaged = CE.to_chord_label(all_gt_averaged)
 acc_averaged = accuracy_score(all_gt_averaged, all_predictions_averaged)
 
-print('Acc: {0:.2f}%'.format(acc*100))
-print('Acc averaged: {0:.2f}%'.format(acc_averaged*100))
+results_name = model_name[:-3] + '_results.txt'
 
+with open(results_path + results_name  , 'w') as f:
+    f.write('\nFor Model ' + results_name + '\n')
+    f.write('    Acc: {0:.2f}%'.format(acc*100) + '\n')
+    f.write('    Acc averaged: {0:.2f}%'.format(acc_averaged*100))
+
+with open(results_path + results_name , 'r') as f:
+    for line in f:
+        print(line)
+
+
+
+matrix_name = model_name[:-3] + '_averaged_roots_conf.eps'
+av_gt_roots = [x.split(':')[0] for x in all_gt_averaged]
+av_pred_roots = [x.split(':')[0] for x in all_predictions_averaged]
+df_roots = CE.get_conf_matrix(av_gt_roots, av_pred_roots, labels=CE.roots)
+plt.figure(figsize = (10,7))
+# sn.set(font_scale=0.8)#for label size
+sn.heatmap(df_roots, cmap="Blues", annot=True,annot_kws={"size": 10}, fmt='g')
+b, t = plt.ylim() # discover the values for bottom and top
+b += 0.5
+t -= 0.5
+plt.ylim(b, t)
+plt.savefig(results_path + matrix_name, format='eps', dpi=50)
+
+plt.clf()
+
+matrix_name = model_name[:-3] + '_averaged_type_conf.eps'
+av_gt_chords = [x.split(':')[1] for x in all_gt_averaged]
+av_pred_chords = [x.split(':')[1] for x in all_predictions_averaged]
+df_chords = CE.get_conf_matrix(av_gt_chords, av_pred_chords, labels=CE.chord_types)
+plt.figure(figsize = (10,7))
+# sn.set(font_scale=0.8)#for label size
+sn.heatmap(df_chords, cmap="Blues", annot=True,annot_kws={"size": 10}, fmt='g')
+b, t = plt.ylim() # discover the values for bottom and top
+b += 0.5
+t -= 0.5
+plt.ylim(b, t)
+plt.savefig(results_path + matrix_name, format='eps', dpi=50)
+
+
+##############################################################################
+
+matrix_name = model_name[:-3] + '_roots_conf.eps'
+gt_roots = [x.split(':')[0] for x in all_gt]
+pred_roots = [x.split(':')[0] for x in all_predictions]
+df_roots = CE.get_conf_matrix(gt_roots, pred_roots, labels=CE.roots)
+plt.figure(figsize = (10,7))
+# sn.set(font_scale=0.8)#for label size
+sn.heatmap(df_roots, cmap="Blues", annot=True,annot_kws={"size": 10}, fmt='g')
+b, t = plt.ylim() # discover the values for bottom and top
+b += 0.5
+t -= 0.5
+plt.ylim(b, t)
+plt.savefig(results_path + matrix_name, format='eps', dpi=50)
+
+plt.clf()
+
+matrix_name = model_name[:-3] + '_type_conf.eps'
+gt_chords = [x.split(':')[1] for x in all_gt]
+pred_chords = [x.split(':')[1] for x in all_predictions]
+df_chords = CE.get_conf_matrix(gt_chords, pred_chords, labels=CE.chord_types)
+plt.figure(figsize = (10,7))
+# sn.set(font_scale=0.8)#for label size
+sn.heatmap(df_chords, cmap="Blues", annot=True,annot_kws={"size": 10}, fmt='g')
+b, t = plt.ylim() # discover the values for bottom and top
+b += 0.5
+t -= 0.5
+plt.ylim(b, t)
+plt.savefig(results_path + matrix_name, format='eps', dpi=50)
 
 
 

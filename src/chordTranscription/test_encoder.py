@@ -2,9 +2,11 @@ import sys
 import glob
 import pickle
 import numpy         as     np
+import pandas        as     pd
+import seaborn       as     sn
 import tensorflow    as     tf
 import matplotlib.pyplot as plt
-from sklearn.metrics import accuracy_score, precision_score, recall_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, confusion_matrix
 from   keras         import backend as K
 from   keras.backend import tensorflow_backend
 from   keras.utils.np_utils import to_categorical
@@ -22,6 +24,7 @@ method = 'cqt'
 model_paths = '../../models/chordTranscription/encoder/'
 test_data_path = '../../data/JAAH/chordTranscription/encoder/' + method + '/test/'
 results_path = '../../results/chordTranscription/encoder/'
+
 
 model_name    = 'encoder_best.h5'
 
@@ -64,6 +67,7 @@ single_gt_notes = []
 single_gt_beats = []
 
 modality = ''
+# Modalities can be average_cqt, average_latent_features or empty
 if len(sys.argv) == 2:
     modality = sys.argv[1]
     if modality != 'average_cqt' and modality != 'average_latent_features':
@@ -194,6 +198,60 @@ with open(results_path + results_name  , 'w') as f:
 with open(results_path + results_name , 'r') as f:
     for line in f:
         print(line)
+
+
+if modality == 'average_latent_features':
+    matrix_name = model_name[:-3] + '_' + modality + '_roots_conf.eps'
+
+    df_roots = CE.get_conf_matrix(single_gt_roots, average_pred_roots, labels=CE.roots)
+    plt.figure(figsize = (10,7))
+    # sn.set(font_scale=0.8)#for label size
+    sn.heatmap(df_roots, cmap="Blues", annot=True,annot_kws={"size": 10}, fmt='g')
+    b, t = plt.ylim() # discover the values for bottom and top
+    b += 0.5
+    t -= 0.5
+    plt.ylim(b, t)
+    plt.savefig(results_path + matrix_name, format='eps', dpi=50)
+
+    plt.clf()
+    matrix_name = model_name[:-3] + '_' + modality + '_notes_conf.eps'
+
+    df_notes = CE.get_conf_matrix(single_gt_notes, average_pred_notes, labels=CE.chord_types)
+    plt.figure(figsize = (10,7))
+    # sn.set(font_scale=0.8)#for label size
+    sn.heatmap(df_notes, cmap="Blues", annot=True,annot_kws={"size": 10}, fmt='g')
+    b, t = plt.ylim() # discover the values for bottom and top
+    b += 0.5
+    t -= 0.5
+    plt.ylim(b, t)
+    plt.savefig(results_path + matrix_name, format='eps', dpi=50)
+else:
+    matrix_name = model_name[:-3] + '_' + modality + '_roots_conf.eps'
+
+    df_roots = CE.get_conf_matrix(all_gt_roots, all_pred_roots, labels=CE.roots)
+    plt.figure(figsize = (10,7))
+    # sn.set(font_scale=0.8)#for label size
+    sn.heatmap(df_roots, cmap="Blues", annot=True,annot_kws={"size": 10}, fmt='g')
+    b, t = plt.ylim() # discover the values for bottom and top
+    b += 0.5
+    t -= 0.5
+    plt.ylim(b, t)
+    plt.savefig(results_path + matrix_name, format='eps', dpi=50)
+
+    plt.clf()
+    matrix_name = model_name[:-3] + '_' + modality + '_notes_conf.eps'
+
+    df_notes = CE.get_conf_matrix(all_gt_notes, all_pred_notes, labels=CE.chord_types)
+    plt.figure(figsize = (10,7))
+    # sn.set(font_scale=0.8)#for label size
+    sn.heatmap(df_notes, cmap="Blues", annot=True,annot_kws={"size": 10}, fmt='g')
+    b, t = plt.ylim() # discover the values for bottom and top
+    b += 0.5
+    t -= 0.5
+    plt.ylim(b, t)
+    plt.savefig(results_path + matrix_name, format='eps', dpi=50)
+
+
 
     # for gt, pred in zip(gt_root_names, pred_root_names):
     #     print('GT: {}, pred: {}'.format(gt, pred))
