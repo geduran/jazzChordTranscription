@@ -25,16 +25,16 @@ last_model    = 'decoder_'+method+'_last.h5'
 # prepare callbacks
 callbacks    = decoder_callBacks(model_paths + best_model)
 
-epochs         = 40
-n_hidden       = 60
-batch_size     = 128
+epochs         = 80
+n_hidden       = 128
+# batch_size     = 128
 # seq_len        = 50
 num_features   = 26
 n_labels       = 61
 
 
 
-decoder_split_data(data_path,  out_dir=data_temp_dir)
+# decoder_split_data(data_path,  out_dir=data_temp_dir)
 
 training_filenames = glob.glob(data_temp_dir + '*train*.pkl')
 validation_filenames = glob.glob(data_temp_dir + '*validation*.pkl')
@@ -44,9 +44,9 @@ my_validation_batch_generator = DecoderDataGenerator(validation_filenames, num_f
 n_train_samples = len(training_filenames)
 n_val_samples = len(validation_filenames)
 
-input_shape  = (None, num_features)
+input_shape  = (None, num_features, 1)
 
-model =  functional_decoder(input_shape)
+model =  functional_decoder(input_shape, n_hidden, n_labels)
 
 model.summary()
 
