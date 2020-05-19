@@ -1,0 +1,4 @@
+
+For Model decoder_best_results.txt
+    Acc: 67.82%
+    Acc averaged: 77.28%
