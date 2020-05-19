@@ -226,7 +226,7 @@ def functional_decoder(input_shape):
     return model
 
 
-def define_callBacks(model_file):
+def encoder_callBacks(model_file):
     #metrics = Metrics()
     callbacks = [
         EarlyStopping(
@@ -243,6 +243,22 @@ def define_callBacks(model_file):
     ]
     return callbacks
 
+def decoder_callBacks(model_file):
+    #metrics = Metrics()
+    callbacks = [
+        EarlyStopping(
+            monitor        = 'accuracy',
+            patience       = 10,
+            mode           = 'max',
+            verbose        = 1),
+        ModelCheckpoint(model_file,
+            monitor        = 'accuracy',
+            save_best_only = False,
+            mode           = 'max',
+            verbose        = 0)#,
+        #metrics
+    ]
+    return callbacks
 
 
     data = {
