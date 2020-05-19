@@ -30,7 +30,7 @@ model_name    = 'decoder_best.h5'
 
 
 epochs         = 40
-n_hidden       = 64
+n_hidden       = 128
 # seq_len        = 50
 num_features   = 26
 n_labels       = 61
@@ -38,7 +38,7 @@ n_labels       = 61
 input_shape  = (None, num_features)
 
 
-model = functional_decoder(input_shape)
+model = functional_decoder(input_shape, n_hidden, n_labels)
 model.load_weights(model_paths + model_name)
 # model.summary()
 
