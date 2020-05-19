@@ -247,12 +247,12 @@ def decoder_callBacks(model_file):
     #metrics = Metrics()
     callbacks = [
         EarlyStopping(
-            monitor        = 'accuracy',
+            monitor        = 'val_acc',
             patience       = 10,
             mode           = 'max',
             verbose        = 1),
         ModelCheckpoint(model_file,
-            monitor        = 'accuracy',
+            monitor        = 'val_acc',
             save_best_only = False,
             mode           = 'max',
             verbose        = 0)#,
@@ -659,6 +659,13 @@ class chordEval:
             types.append(curr_type)
 
         return pred_roots, names, types
+
+
+    def from_categorical(self, array):
+        output = []
+        for i in array:
+            output.append(np.argmax(i))
+        return output    
 # input_shape = (None, 84, 1)
 # functional_encoder(input_shape)
 #
