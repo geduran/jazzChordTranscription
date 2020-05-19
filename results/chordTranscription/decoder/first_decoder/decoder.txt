@@ -1,0 +1,2 @@
+First model implemented with only 2 BGRU and no CNN layer. 
+128 hidden units each and trained for 80 epochs
