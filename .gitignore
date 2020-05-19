@@ -104,3 +104,6 @@ target/
 
 # Csv files
 *.csv
+
+# Temp directories
+*temp*/
