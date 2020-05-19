@@ -16,7 +16,7 @@ tensorflow_backend.set_session(session)
 
 method = 'cqt'
 model_paths = '../../models/chordTranscription/decoder/'
-data_path = '../../data/JAAH/chordTranscription/intermediate/' + method + '/'
+data_path = '../../data/JAAH/chordTranscription/decoder/' + method + '/'
 data_temp_dir = './temp_data_decoder/'
 
 best_model    = 'decoder_'+method+'_{epoch:02d}.h5'
@@ -30,7 +30,7 @@ n_hidden       = 60
 batch_size     = 128
 # seq_len        = 50
 num_features   = 26
-n_labels = 61
+n_labels       = 61
 
 
 
