@@ -26,7 +26,7 @@ last_model    = 'decoder_'+method+'_last.h5'
 callbacks    = decoder_callBacks(model_paths + best_model)
 
 epochs         = 80
-n_hidden       = 128
+n_hidden       = 64
 # batch_size     = 128
 # seq_len        = 50
 num_features   = 26

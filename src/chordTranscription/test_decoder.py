@@ -26,16 +26,16 @@ model_paths = '../../models/chordTranscription/decoder/'
 test_data_path = '../../data/JAAH/chordTranscription/decoder/' + method + '/test/'
 results_path = '../../results/chordTranscription/decoder/'
 
-model_name    = 'decoder_best.h5'
+model_name    = 'decoder_best_second.h5'
 
 
 epochs         = 40
-n_hidden       = 128
+n_hidden       = 64
 # seq_len        = 50
 num_features   = 26
 n_labels       = 61
 
-input_shape  = (None, num_features)
+input_shape  = (None, num_features, 1)
 
 
 model = functional_decoder(input_shape, n_hidden, n_labels)
@@ -74,10 +74,10 @@ for curr_song in song_names:
         # print('       latent_features: {}'.format(r_pred.shape))
         if all_choruses is None:
             all_choruses = np.concatenate((r_pred, n_pred), axis=2)
-            predictions = model.predict(all_choruses, batch_size=32, verbose=0)
+            predictions = model.predict(all_choruses.reshape((*all_choruses.shape,1)), batch_size=32, verbose=0)
         else:
             curr_choruses = np.concatenate((r_pred, n_pred), axis=2)
-            predictions = model.predict(curr_choruses, batch_size=32, verbose=0)
+            predictions = model.predict(curr_choruses.reshape((*curr_choruses.shape,1)), batch_size=32, verbose=0)
             all_choruses = np.concatenate((all_choruses, curr_choruses), axis=0)
         # print('        all_choruses: {}'.format(all_choruses.shape))
 
@@ -87,7 +87,7 @@ for curr_song in song_names:
     averaged_choruses = np.mean(all_choruses, axis=0).reshape((1, all_choruses.shape[1], all_choruses.shape[2]))
     # class_labels = to_categorical(class_labels, num_classes=61)
 
-    predictions = model.predict(averaged_choruses, batch_size=32, verbose=0)
+    predictions = model.predict(averaged_choruses.reshape((*averaged_choruses.shape, 1)), batch_size=32, verbose=0)
 
     all_gt_averaged.extend(class_labels)
     all_predictions_averaged.extend(np.squeeze(predictions,axis=0).tolist())

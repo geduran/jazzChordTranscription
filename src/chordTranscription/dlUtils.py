@@ -202,7 +202,7 @@ def functional_decoder(input_shape, n_hidden, n_labels):
 
     input = Input(shape=input_shape)
 
-    conv1 = Conv2D(4,  kernel_size=(21, 1), padding='same',
+    conv1 = Conv2D(4,  kernel_size=(41, 1), padding='same',
                    activation='relu', data_format='channels_last')(input)
 
     conv1_bn = BatchNormalization()(conv1)
