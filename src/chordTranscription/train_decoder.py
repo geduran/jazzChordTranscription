@@ -34,7 +34,7 @@ n_labels       = 61
 
 
 
-# decoder_split_data(data_path,  out_dir=data_temp_dir)
+decoder_split_data(data_path,  out_dir=data_temp_dir)
 
 training_filenames = glob.glob(data_temp_dir + '*train*.pkl')
 validation_filenames = glob.glob(data_temp_dir + '*validation*.pkl')
@@ -44,7 +44,7 @@ my_validation_batch_generator = DecoderDataGenerator(validation_filenames, num_f
 n_train_samples = len(training_filenames)
 n_val_samples = len(validation_filenames)
 
-input_shape  = (None, num_features, 1)
+input_shape  = (None, num_features)
 
 model =  functional_decoder(input_shape, n_hidden, n_labels)
 

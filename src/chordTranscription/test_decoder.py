@@ -35,7 +35,7 @@ n_hidden       = 128
 num_features   = 26
 n_labels       = 61
 
-input_shape  = (None, num_features, 1)
+input_shape  = (None, num_features)
 
 
 model = functional_decoder(input_shape, n_hidden, n_labels)
