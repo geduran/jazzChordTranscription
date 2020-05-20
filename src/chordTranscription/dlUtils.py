@@ -202,23 +202,23 @@ def functional_decoder(input_shape, n_hidden, n_labels):
 
     input = Input(shape=input_shape)
 
-    conv1 = Conv2D(4,  kernel_size=(41, 1), padding='same',
-                   activation='relu', data_format='channels_last')(input)
+    # conv1 = Conv2D(4,  kernel_size=(41, 1), padding='same',
+    #                activation='relu', data_format='channels_last')(input)
+    #
+    # conv1_bn = BatchNormalization()(conv1)
+    #
+    # conv2 = Conv2D(1,  kernel_size=1, padding='same',
+    #                activation='relu', data_format='channels_last')(conv1_bn)
+    #
+    # conv2_bn = BatchNormalization()(conv2)
+    #
+    #
+    # concat = Concatenate(axis=2)([input, conv2_bn])
+    #
+    #
+    # sq_concat = Lambda(lambda x: K.squeeze(x, axis=3))(concat)
 
-    conv1_bn = BatchNormalization()(conv1)
-
-    conv2 = Conv2D(1,  kernel_size=1, padding='same',
-                   activation='relu', data_format='channels_last')(conv1_bn)
-
-    conv2_bn = BatchNormalization()(conv2)
-
-
-    concat = Concatenate(axis=2)([input, conv2_bn])
-
-
-    sq_concat = Lambda(lambda x: K.squeeze(x, axis=3))(concat)
-
-    gru1 = Bidirectional(GRU(n_hidden, return_sequences=True))(sq_concat)
+    gru1 = Bidirectional(GRU(n_hidden, return_sequences=True))(input)
 
     gru2 = Bidirectional(GRU(n_hidden, return_sequences=True))(gru1)
 

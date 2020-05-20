@@ -30,7 +30,7 @@ model_name    = 'decoder_best_second.h5'
 
 
 epochs         = 40
-n_hidden       = 64
+n_hidden       = 128
 # seq_len        = 50
 num_features   = 26
 n_labels       = 61
