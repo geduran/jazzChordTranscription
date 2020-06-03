@@ -1,0 +1,10 @@
+{
+    "name": "when_lights_are_low",
+    "boundaries": [
+                     {"start": 0.6  , "end": 39.77},
+                     {"start": 39.76, "end": 78.59},
+                     {"start": 88.04, "end": 126.59}
+                  ],
+    "num_measures": 32,
+    "metre": "4/4"
+}

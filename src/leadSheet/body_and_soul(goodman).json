@@ -1,0 +1,9 @@
+{
+    "name": "body_and_soul(goodman)",
+    "boundaries": [
+                     {"start": 0.64  , "end": 80.84},
+                     {"start": 80.84, "end": 161.41}
+                  ],
+    "num_measures": 32,
+    "metre": "4/4"
+}

@@ -1,0 +1,11 @@
+{
+    "name": "hotter_than_that",
+    "boundaries": [
+                     {"start": 9.82 , "end": 45.51},
+                     {"start": 45.51, "end": 81.27},
+                     {"start": 81.27, "end": 116.46},
+                     {"start": 138.01, "end": 172.79}
+                  ],
+    "num_measures": 32,
+    "metre": "4/4"
+}

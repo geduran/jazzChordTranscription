@@ -1,0 +1,15 @@
+{
+    "name": "minor_swing",
+    "boundaries": [
+                     {"start": 20.27,  "end": 39.75},
+                     {"start": 39.77,  "end": 58.9 },
+                     {"start": 58.89,  "end": 78.01},
+                     {"start": 78.01,  "end": 96.95},
+                     {"start": 96.96,  "end": 115.86},
+                     {"start": 115.86,  "end": 134.67},
+                     {"start": 134.68,  "end": 153.46},
+                     {"start": 153.46,  "end": 172.18}
+                  ],
+    "num_measures": 16,
+    "metre": "4/4"
+}

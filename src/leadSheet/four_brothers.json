@@ -1,0 +1,12 @@
+{
+    "name": "four_brothers",
+    "boundaries": [
+                     {"start": 0.2  , "end": 35.46},
+                     {"start": 35.48, "end": 70.25},
+                     {"start": 70.26, "end": 104.89},
+                     {"start": 104.9, "end": 140.3},
+                     {"start": 140.29, "end": 175.43}
+                  ],
+    "num_measures": 32,
+    "metre": "4/4"
+}

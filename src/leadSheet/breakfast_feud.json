@@ -1,0 +1,17 @@
+{
+    "name": "breakfast_feud",
+    "boundaries": [
+                     {"start": 0.94  , "end": 14.13},
+                     {"start": 14.13, "end": 27.23},
+                     {"start": 27.23, "end": 41.12},
+                     {"start": 41.12, "end": 54.87},
+                     {"start": 54.87, "end": 68.38},
+                     {"start": 68.38, "end": 81.78},
+                     {"start": 81.78, "end": 95.29},
+                     {"start": 95.29, "end": 108.75},
+                     {"start": 108.75, "end": 122.21},
+                     {"start": 122.21, "end": 135.45}
+                  ],
+    "num_measures": 12,
+    "metre": "4/4"
+}
