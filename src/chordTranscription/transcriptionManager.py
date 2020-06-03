@@ -3,6 +3,15 @@ import librosa
 import madmom
 from madmom.audio.filters import MelFilterbank
 
+# self imports
+from   dlUtils           import functional_both, only_decoder
+from   dlUtils           import  chordTesting, chordEval
+from   keras             import backend as K
+from   keras.backend     import tensorflow_backend
+import keras
+from   keras.layers      import Input
+import tensorflow        as     tf
+
 # Pyhton imports
 import random
 import os
@@ -12,9 +21,11 @@ import json
 import time
 import sys
 import scipy.io.wavfile
-import numpy    as np
-import pandas   as pd
+import numpy     as np
+import pandas    as pd
 from collections import deque
+import matplotlib.pyplot             as plt
+from matplotlib.backends.backend_pdf import PdfPages
 
 
 # Own Code Imports
@@ -69,18 +80,27 @@ class transcriptionData(SynchronizationData):
                                 'Cb': 11
                             }
 
-    def getCqtChoruses(self,audio_choruses, info, hop_len=1024, method='cqt'):
+    def getCqtChoruses(self,audio_choruses, info={}, hop_len=1024, method='cqt'):
         """
             Gets the CQT of each chorus in audio_choruses. Returns A list in
             the same order that the input audio_choruses.
 
         """
-        tuning = info['tuning']
+        if 'tuning' in info.keys():
+            tuning = info['tuning']
+            if not isinstance(tuning, (int, float, complex)):
+                tuning = None
+            else:
+                # print('tuning: {}  -> {}'.format(tuning, 1200 * np.log2(tuning/440) / 100))
+                tuning = 1200 * np.log2(tuning/440) / 100
+        else:
+            tuning = None
+
         cqt_choruses = []
 
         for curr_audio in audio_choruses:
             if 'cqt' in method:
-                curr_cqt = AudioData.getCQT(curr_audio, hop_len=hop_len)
+                curr_cqt = AudioData.getCQT(curr_audio, hop_len=hop_len, tuning=tuning)
             elif 'mel' in method:
                 newCqt1 = AudioData.getMelSpectrogram(curr_audio, hop_len=hop_len, win_len=2048, tuning_freq=tuning, n_bands=85)
                 newCqt2 = AudioData.getMelSpectrogram(curr_audio, hop_len=hop_len, win_len=4096, tuning_freq=tuning, n_bands=85)
@@ -94,14 +114,25 @@ class transcriptionData(SynchronizationData):
 
         return cqt_choruses
 
+    # def pitch_shift(self, path, i):
+    #     i = str(i)
+    #     command = 'rubberband -p '+i+' --pitch-hq '+path+' '+'temp.wav'
+    #     os.system(command)
+
     def getDtwPaths(self, song_name):
+        print('song_name ' +  song_name)
+        if len(self.dtw_results_path) < 2:
+            base_path = '../../results/segmentSynch/JAAH_results/paths_beats/'
+        else:
+            base_path = self.dtw_results_path
         dtw_paths = []
         for i in range(1, 1000):
             curr_path = song_name+'_0_'+str(i)+'_MFCC_cqt[bass]_cqt[mid]_cqt[treble]_tonnetz_2048_mahalanobis.pkl'
-            if not os.path.isfile(self.dtw_results_path + curr_path):
+            print(base_path + curr_path)
+            if not os.path.isfile(base_path + curr_path):
                 break
 
-            file = open(self.dtw_results_path + curr_path, 'rb')
+            file = open(base_path + curr_path, 'rb')
             curr_dtw = pickle.load(file)
             file.close()
 
@@ -110,7 +141,6 @@ class transcriptionData(SynchronizationData):
         return dtw_paths
 
     def getChords(self, choruses):
-        essence_chords = []
         measure_chords = []
         final_chords = {}
         for _, value in choruses.items():
@@ -187,26 +217,31 @@ class transcriptionData(SynchronizationData):
         return chord_labels, beat_labels
 
 
-    def codeChordLabels(self, aligned_chords):
+    def codeChordLabels(self, aligned_chords, transpose=0):
+        """
+            Creates one-hot labels for roots and notes in a chord. Can transpose
+            'i' semitones
+        """
+
         coded_root = np.zeros((13, len(aligned_chords)), dtype=int)
-        coded_notes = np.zeros((13, len(aligned_chords)), dtype=int)
+        coded_notes = np.zeros((12, len(aligned_chords)), dtype=int)
 
         for i, curr_chord in enumerate(aligned_chords):
             root, type = curr_chord.split(':')
 
             if 'N' != root:
-                rot_ind = self.rotation_index[root]
+                rot_ind = self.rotation_index[root] + transpose
                 curr_root = self.root_coding.copy()
                 curr_root.rotate(rot_ind)
                 curr_notes = self.type_template[type].copy()
                 curr_notes.rotate(rot_ind)
                 curr_root.append(0)
-                curr_notes.append(0)
+                # curr_notes.append(0)
             else:
                 curr_root = np.zeros((13))
                 curr_root[-1] = 1
-                curr_notes = np.zeros((13))
-                curr_notes[-1] = 1
+                curr_notes = np.zeros((12))
+                # curr_notes[-1] = 1
 
 
             root_list = list(curr_root.copy())
@@ -222,6 +257,8 @@ class transcriptionData(SynchronizationData):
         #     print('        coded_notes: {}'.format(coded_notes[:,i]))
 
         return coded_root, coded_notes
+
+
 
     def averageCqts(self, warped_cqts):
         # print('input {} sequences of shape {}'.format(len(warped_cqts), warped_cqts[0].shape))
@@ -242,6 +279,10 @@ class transcriptionData(SynchronizationData):
         return averaged_cqts
 
     def _simplifyChord(self, chord):
+        """
+            Only a dict of maj, 7, min, hdim and dim chord classes is used.
+        """
+
         splitted_chords = chord.rstrip().lstrip().split(' ')
         corrected_chord = []
 
@@ -269,6 +310,9 @@ class transcriptionData(SynchronizationData):
 
 
     def _getMostProbableChord(self, chord_list):
+        """
+            If a chord is rendered differently within choruses, the mode is taken.
+        """
 
         chord_dict = {i:chord_list.count(i) for i in chord_list}
         max_chord = max(chord_dict, key=chord_dict.get)
@@ -437,6 +481,83 @@ class transcriptionData(SynchronizationData):
 
 
 
+    def predict_chords(self, cqts):
+        """
+            Perform prediction on previously synchronized audios, that should
+            come as time-frequency representations already. The input is a
+            list of time-frequency samples. The encoded latent features are averaged
+            and final prediction obtained.
+        """
+        # tensorflow configuration
+        config  = tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True))
+        session = tf.Session(config=config)
+        tensorflow_backend.set_session(session)
+
+
+        # Hard coded params. Best models obtained work with those...
+        both_shape  = (None, 84, 1)
+        both_path = '../../models/chordTranscription/both_second/both_second_best.h5'
+        both = functional_both(both_shape)
+        both.load_weights(both_path)
+
+
+        encoder = keras.Model(inputs=both.input, outputs=
+                                    [both.get_layer('sq_conv4').output,
+                                     both.get_layer('root').output,
+                                     both.get_layer('notes').output,
+                                     both.get_layer('beats').output])
+
+        dec_shape = (None, 109)
+        decoder = only_decoder(dec_shape)
+        decoder.load_weights(both_path, by_name=True)
+
+        testPred = chordTesting('average_predictions')
+        testLatent = chordTesting('average_latent_features')
+
+        CE = chordEval()
+
+        for curr_chorus in cqts:
+
+            test_data = np.zeros((1, *curr_chorus.T.shape, 1))
+            test_data[0,:,:,0] = curr_chorus.T
+
+            r_pred, n_pred, b_pred, c_pred = both.predict(test_data)
+
+            l_i_pred, r_i_pred, n_i_pred, b_i_pred = encoder.predict(test_data)
+
+
+            all_predictions = chordTesting.toHRlabels(r_pred, n_pred, b_pred,
+                                                      c_pred, CE)
+            pred_roots, pred_notes, pred_beats, pred_chords = all_predictions
+
+            l_interm, r_interm, n_interm, b_interm = encoder.predict(test_data)
+            testLatent.stackLatentValues(l_interm, r_pred, n_pred, b_pred)
+
+            # Stack predictions of each chorus
+            testPred.stackPredValues(r_pred, n_pred, b_pred, c_pred)
+
+
+        testLatent.averageLatentStack()
+        testPred.averagePredStack()
+        # Obtain chords prediction for averaged latent features
+        c_pred_decoder = decoder.predict(testLatent.concatenatedLatent)
+
+        r_average = testPred.stack_root
+        n_average = testPred.stack_notes
+        b_average = testPred.stack_beats
+        c_average = testPred.stack_chords
+
+        # Human readable labels for averaged predictions
+        average_pred = chordTesting.toHRlabels(r_average, n_average,
+                                                b_average, c_average,CE)
+        average_latent = chordTesting.toHRlabels(r_average, n_average,
+                                               b_average, c_pred_decoder,CE)
+
+        avPred_chords = average_pred[3]
+        avLat_chords = average_latent[3]
+
+        return avPred_chords, avLat_chords
+
 
 
     def alignSequences(self, seq1, seq2, path):
@@ -509,3 +630,198 @@ class transcriptionData(SynchronizationData):
                 prev_i = i
                 prev_j = j
         return np.array(anchor_points)
+
+
+
+class leadSheetClass:
+
+    def __init__(self, num_measures, metre):
+        self.num_measures = num_measures
+        self.metre = metre
+        self.num, self.den = self.metre.split('/')
+        self.num = int(self.num)
+        self.den = int(self.den)
+        self.slots = self._initSlots()
+        self.types = set()
+
+    def print(self, path):
+        # for key, value in self.slots.items():
+        #     print('{} -> {}'.format(key,value))
+
+        lines = int(self.num_measures/self.num)+(self.num_measures%self.num >0)
+        grid = np.zeros((5, lines))
+
+        h_space = 0.25
+        v_space = 0.1
+
+        beat_space = h_space/(self.num + 1)
+
+        song_name = path.split('/')[-1].replace('_', ' ')
+        with PdfPages(path + '.pdf') as pdf:
+
+            fig = plt.figure(figsize=(4, 6))
+            ax = fig.add_subplot(111)
+            txt = ax.text(0.5, 1.05, song_name,
+                          fontSize=13, fontweight='bold',
+                          bbox={'facecolor':'white','alpha':1,
+                                'edgecolor':'none','pad':1},
+                          ha='center', va='center')
+
+            def plot_bar(h,v):
+                txt = ax.text(h, v, '|', fontSize=15, fontweight='bold')
+                return txt
+
+            for j in range(5):
+                for i in range(lines):
+                    if not i and not j:
+                        txt = plot_bar(j*h_space-0.01, 0.9-i*v_space)
+                    txt = plot_bar(j*h_space, 0.9-i*v_space)
+            txt = plot_bar(j*h_space+0.01, 0.9-i*v_space)
+
+
+            num_types = len(self.types)
+            self.types = sorted(list(self.types))
+            if num_types == 1:
+                v_offset = [0]
+                colors = ['black']
+            elif num_types == 2:
+                v_offset = [0.01, -0.01]
+                colors = ['black', 'blue']
+            elif num_types == 3:
+                v_offset = [0.02, 0, -0.02]
+                colors = ['black', 'blue', 'red']
+            else:
+                v_offset = [0.03, 0.01, -0.01, -0.03]
+                colors = ['black', 'blue', 'red', 'green']
+
+
+            for i, type in enumerate(self.types):
+                for measure_idx, measure_dict in self.slots.items():
+                    v = 0.9 - (measure_idx // self.num) * v_space + v_offset[i]
+                    measure_offset = (measure_idx % self.num) * h_space
+
+                    for beat in range(self.num):
+                        beat_pos = h_space / 4
+                        h = beat * beat_pos +  measure_offset + h_space/8
+
+                        if type in measure_dict[beat].keys():
+                            chord = measure_dict[beat][type]
+                        elif not beat:
+                            pass
+                        else:
+                            continue
+                        root, chord_type = self._simplifyAnnotation(chord)
+                        txt = ax.text(h, v, r'$'+root+'_{'+chord_type+'}$',
+                                      fontSize=5.5, fontweight='bold',
+                                      color=colors[i])
+
+
+            for i, type in enumerate(self.types):
+                 txt = ax.text(0, v_offset[i]*1.6, type,
+                               fontSize=10, fontweight='bold',
+                               color=colors[i])
+
+            txt.set_clip_on(False)
+            plt.axis('off')
+            pdf.savefig()
+
+    def _simplifyAnnotation(self, chord):
+
+        chord = chord.replace('B/Cb','B').replace('C#/Db', 'Db')
+        chord = chord.replace('D#/Eb','Eb').replace('F#/Gb', 'Gb')
+        chord = chord.replace('G#/Ab','Ab').replace('A#/Bb', 'Bb')
+        chord = chord.replace('min', '-')#.replace('hdim', r'$\oslash$')
+        chord = chord.replace('maj', ' ')#.replace('dim', r'$\bigcirc$')
+        chord = chord.replace('C#', 'Db').replace('D#', 'Eb')
+        chord = chord.replace('F#', 'Gb').replace('G#', 'Ab').replace('A#','Bb')
+
+        return chord.split(':')
+
+
+    def _initSlots(self):
+        slots = {}
+        for measure in range(self.num_measures):
+            curr_dict = {}
+            for i in range(self.num):
+                curr_dict[i] = {}
+            slots[measure] = curr_dict
+
+        return slots
+
+    def populateChords(self, aligned_chords, type):
+
+        self.types.add(type)
+        if isinstance(aligned_chords, list):
+            N = len(aligned_chords)
+            beat_times = np.linspace(0, N-1, num=self.num*self.num_measures)
+
+            chord_change = []
+            prev_chord = aligned_chords[0]
+            chord_list = []
+            for i, curr_chord in enumerate(aligned_chords):
+                if curr_chord != prev_chord:
+                    approx_beat = self._approxBeat(i, beat_times).item()
+                    chord_change.append(approx_beat)
+                    prev_chord = curr_chord
+                    chord_list.append(curr_chord)
+
+            assert len(chord_change) == len(chord_list)
+
+
+            self.slots[0][0][type] = aligned_chords[0]
+
+            for chord, ind in zip(chord_list, chord_change):
+                measure = ind // self.num
+                beat = ind % self.num
+                self.slots[measure][beat][type] =  chord
+
+        elif isinstance(aligned_chords, dict):
+            for measure, chord_list in aligned_chords.items():
+                # chord_list = list(dict.fromkeys(chord_list))
+                if len(chord_list) == 1:
+                    self.slots[measure][0][type] = chord_list[0]
+                elif len(chord_list) == 2:
+                    self.slots[measure][0][type] = chord_list[0]
+                    self.slots[measure][2][type] = chord_list[1]
+                else:
+                    self.slots[measure][0][type] = chord_list[0]
+                    self.slots[measure][1][type] = chord_list[1]
+                    self.slots[measure][2][type] = chord_list[2]
+                    self.slots[measure][3][type] = chord_list[3]
+        else:
+            raise TypeError('aligned chords not in proper format')
+
+
+
+    def _approxBeat(self, i, beats):
+        ind = np.argwhere(beats>=i)[0]
+
+        if not ind:
+            return beat[ind]
+
+        # print('beat-1 {}, beat {}, beat+1 {}'.format(beat_times[approx_beat-1], beat_times[approx_beat], beat_times[approx_beat+1]))
+
+        dist1 = abs(beats[ind] - i)
+        dist2 = abs(beats[ind-1] - i)
+        if ind % 2:
+            dist1 += 2
+        else:
+            dist2 += 2
+
+        if dist1 > dist2:
+            return ind-1
+        else:
+            return ind
+
+
+
+
+
+
+
+
+
+
+
+
+        #
