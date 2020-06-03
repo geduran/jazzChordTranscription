@@ -1,0 +1,159 @@
+
+def functional_both(input_shape):
+
+    print('En functional_encoder input_shape: {}'.format(input_shape))
+
+    input = Input(shape=input_shape)
+
+    input_bn = BatchNormalization()(input)
+
+    conv1 = Conv2D(1,  kernel_size=(5, 5), padding='same',
+                   activation='relu', data_format='channels_last')(input_bn)
+
+    conv1_bn = BatchNormalization()(conv1)
+    #
+    # conv2 = Conv2D(4,  kernel_size=(3, 3), padding='same',
+    #                activation='relu', data_format='channels_last')(conv1_bn)
+    #
+    # conv2_bn = BatchNormalization()(conv2)
+    #
+    # conv3 = Conv2D(4,  kernel_size=(3, 3), padding='same',
+    #                activation='relu', data_format='channels_last')(conv2_bn)
+    #
+    # conv3_bn = BatchNormalization()(conv3)
+
+    # For root and notes
+    conv4 = Conv2D(84, kernel_size=(1, int(conv1.shape[2])), padding='valid',
+                   activation='relu', data_format='channels_last')(conv1_bn)
+
+    conv4_bn = BatchNormalization()(conv4)
+
+
+    # conv4_bn = Conv2D(64,  kernel_size=(1, 1), padding='same',
+    #                activation='relu', data_format='channels_last')(conv4_bn)
+    #
+    # conv4_bn = BatchNormalization()(conv4_bn)
+
+
+    sq_conv4 = Lambda(lambda x: K.squeeze(x, axis=2), name='sq_conv4')(conv4_bn)
+
+    gru1_interm = Bidirectional(GRU(128, dropout=0.35, recurrent_dropout=0.35,
+                         # activity_regularizer=regularizers.l2(1e-3),
+                         return_sequences=True))(sq_conv4)
+
+    gru1_interm_bn = BatchNormalization()(gru1_interm)
+
+    gru2_interm = Bidirectional(GRU(128, dropout=0.35, recurrent_dropout=0.35,
+                         # activity_regularizer=regularizers.l2(1e-3),
+                         return_sequences=True))(gru1_interm_bn)
+
+    gru2_interm_bn = BatchNormalization()(gru2_interm)
+
+    root_output = TimeDistributed(Dense(13, activation='softmax'), name='root')(gru2_interm_bn)
+
+    notes_output = TimeDistributed(Dense(12, activation='sigmoid'), name='notes')(gru2_interm_bn)
+
+    #
+    # # For beats
+    # conv5 = Conv2D(4,  kernel_size=(3, 3), padding='same',
+    #                activation='relu', data_format='channels_last')(conv1_bn)
+    #
+    # conv5_bn = BatchNormalization()(conv5)
+    #
+    # conv6 = Conv2D(1,  kernel_size=(3, 3), padding='same',
+    #                activation='relu', data_format='channels_last')(conv5_bn)
+    #
+    # conv6_bn = BatchNormalization()(conv6)
+    #
+    # conv6_mp = MaxPooling2D(pool_size=(1,2), data_format='channels_last')(conv6_bn)
+    #
+    # sq_conv6 = Lambda(lambda x: K.squeeze(x, axis=3))(conv6_mp)
+    #
+    # gru1_beat = Bidirectional(GRU(32, return_sequences=True, dropout=0.35,
+    #                      recurrent_dropout=0.35))(sq_conv6)
+    #
+    # gru1_beat_bn = BatchNormalization()(gru1_beat)
+    #
+    gru2_beat = Bidirectional(GRU(32, return_sequences=True, dropout=0.2,
+                         recurrent_dropout=0.2))(sq_conv4)
+
+    gru2_beat_bn = BatchNormalization()(gru2_beat)
+
+    beat_output = TimeDistributed(Dense(2, activation='softmax'), name='beats')(gru2_beat_bn)
+
+
+
+    concat = Concatenate(axis=2, name='concat')([sq_conv4, root_output, notes_output])#,
+                                  # beat_output])
+
+    concat_bn = BatchNormalization(name='concat_bn')(concat)
+
+    gru1_chord = Bidirectional(GRU(128, return_sequences=True, dropout=0.35,
+                         recurrent_dropout=0.35), name='gru1_chord')(concat_bn)
+
+    gru1_chord_bn = BatchNormalization(name='gru1_chord_bn')(gru1_chord)
+
+    gru2_chord = Bidirectional(GRU(128, return_sequences=True, dropout=0.35,
+                         recurrent_dropout=0.35), name='gru2_chord')(gru1_chord_bn)
+
+    gru2_chord_bn = BatchNormalization(name='gru2_chord_bn')(gru2_chord)
+
+    chord_output = TimeDistributed(Dense(61, activation='softmax'), name='chords')(gru2_chord_bn)
+
+
+    model = Model(inputs=input, outputs=[root_output, notes_output, beat_output, chord_output])
+
+
+    losses = {
+    	'root': 'categorical_crossentropy',
+    	'notes': 'mean_squared_error',
+        'beats': 'binary_crossentropy',
+        'chords': 'categorical_crossentropy'
+    }
+    losses_weight = {
+        	'root': 1,
+        	'notes': 10,
+            'beats': 5,
+            'chords': 3
+    }
+
+    metrics = {
+        'root': 'accuracy',
+        'notes': 'accuracy',
+        'beats': [f1],
+        'chords': 'accuracy'
+    }
+
+    model.compile(optimizer='adam',
+                  loss= losses,
+                  loss_weights=losses_weight,
+                  metrics=metrics)
+
+    # model.summary()
+    return model
+
+def only_decoder(input_shape):
+
+    input = Input(shape=input_shape)
+
+    concat_bn = BatchNormalization(name='concat_bn')(input)
+
+    gru1_chord = Bidirectional(GRU(128, return_sequences=True, dropout=0.2,
+                         recurrent_dropout=0.2), name='gru1_chord')(concat_bn)
+
+    gru1_chord_bn = BatchNormalization(name='gru1_chord_bn')(gru1_chord)
+
+    gru2_chord = Bidirectional(GRU(128, return_sequences=True, dropout=0.2,
+                         recurrent_dropout=0.2), name='gru2_chord')(gru1_chord_bn)
+
+    gru2_chord_bn = BatchNormalization(name='gru2_chord_bn')(gru2_chord)
+
+    chord_output = TimeDistributed(Dense(61, activation='softmax'), name='chords')(gru2_chord_bn)
+
+    model = Model(inputs=input, outputs=[chord_output])
+#
+    model.compile(optimizer='adam',
+                  loss= 'categorical_crossentropy',
+                  metrics=['accuracy'])
+    return model
+

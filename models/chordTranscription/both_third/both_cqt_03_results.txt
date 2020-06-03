@@ -1,0 +1,27 @@
+
+For Model both_cqt_03_results.txt
+    All choruses
+        chords_accuracy: 0.46
+        chord_root_accuracy: 0.55
+        chords_thirds_accuracy: 0.54
+        chords_mirex_accuracy: 0.55
+        root_accuracy: 0.55
+        notes_accuracy: 0.44
+        beats_accuracy: 0.86
+        beats_precision: 0.59
+        beats_recall: 0.03
+    Averaged Predictions
+        chords_accuracy: 0.59
+        chord_root_accuracy: 0.66
+        chords_thirds_accuracy: 0.65
+        chords_mirex_accuracy: 0.68
+        root_accuracy: 0.65
+        notes_accuracy: 0.48
+        beats_accuracy: 0.87
+        beats_precision: 0.00
+        beats_recall: 0.00
+    Averaged Latent Features
+        chords_accuracy: 0.55
+        chord_root_accuracy: 0.63
+        chords_thirds_accuracy: 0.61
+        chords_mirex_accuracy: 0.64

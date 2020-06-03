@@ -1,0 +1,19 @@
+
+For Model both_cqt_05_results.txt
+    Roots_greedy
+        accuracy: 0.58
+    Roots
+        accuracy: 0.58
+    Notes_greedy
+        accuracy: 0.53
+    Notes
+        accuracy: 0.53
+    Beats
+        accuracy: 0.85
+        precision: 0.51
+        recall: 0.16
+    Chords
+        accuracy: 0.53
+        root_eval: 0.60
+        mirex_eval: 0.59
+        thirds_eval: 0.58

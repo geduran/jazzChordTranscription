@@ -1,0 +1,16 @@
+
+For Model both_cqt_19_results.txt
+    Roots_greedy
+        accuracy: 0.59
+    Roots
+        accuracy: 0.59
+    Notes_greedy
+        accuracy: 0.59
+    Notes
+        accuracy: 0.59
+    Beats
+        accuracy: 0.85
+        precision: 0.49
+        recall: 0.35
+    Chords
+        accuracy: 0.54
