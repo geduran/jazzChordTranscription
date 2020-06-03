@@ -27,6 +27,9 @@ class SynchronizationData():
         self.sr = sr
         self.hop_len = hop_len
         self.workin_dir = workin_dir
+        self.bass_range = [32, 261]
+        self.mid_range =  [130, 1046]
+        self.treble_range = [523, 4186]
 
     def read_json(self, path):
         if '.json' not in path:
@@ -101,12 +104,18 @@ class SynchronizationData():
 
     def segmentate_choruses(self, audio, choruses):
         audio_choruses = []
-        for key, values in choruses.items():
-            if 'ame' in key:
-                continue
-            curr_start = int(values['start'] * self.sr)
-            curr_end = int(values['end'] * self.sr)
-            audio_choruses.append(audio[curr_start:curr_end]/np.max(audio[curr_start:curr_end]))
+        if isinstance(choruses, dict):
+            for key, values in choruses.items():
+                if 'ame' in key:
+                    continue
+                curr_start = int(values['start'] * self.sr)
+                curr_end = int(values['end'] * self.sr)
+                audio_choruses.append(audio[curr_start:curr_end]/np.max(audio[curr_start:curr_end]))
+        elif isinstance(choruses, list):
+            for values in choruses:
+                curr_start = int(values['start'] * self.sr)
+                curr_end = int(values['end'] * self.sr)
+                audio_choruses.append(audio[curr_start:curr_end]/np.max(audio[curr_start:curr_end]))
             # scipy.io.wavfile.write('/Users/gabrielduran007/Desktop/University/MAGISTER/codigos/jazz_JAAH/' + choruses['name'] + '_seg'+key+'.wav', self.sr, audio[curr_start:curr_end]/np.max(audio[curr_start:curr_end]))
         return audio_choruses
 
@@ -207,41 +216,67 @@ class SynchronizationData():
         with open(plotPath, 'wb') as file:
             pickle.dump(save_info, file)
 
-    def two_seq_dtw(self, chroma1, chroma2, chorus1, chorus2, metric='euclidean', printTimes=True,
-                    printError=True, dbName='',name='', pair=(0,0), method='', inv_cov=None, hop_len=''):
 
+
+    def _get_dtw_path(self, chroma1, chroma2, metric='euclidean', inv_cov=None):
         chroma_value1 = chroma1['chroma_values']
         chroma_value2 = chroma2['chroma_values']
 
         index_seconds1 = chroma1['index_second']
         index_seconds2 = chroma2['index_second']
 
-        t0 = time.time()
-        # print('chroma1: {}, chroma2: {}'.format(chroma_value1.shape, chroma_value2.shape))
         cost_matrix, path_dtw = librosa.sequence.dtw(X=chroma_value1,
                                                      Y=chroma_value2,
                                                      metric=metric,
                                                      mahalanobis_inv_cov=inv_cov)
-
-        ########################################################################
-        # print('Saving data of pair {}'.format(pair))
-        # file = open('../../notebooks/giant_steps_paths/features_giant_steps_'+str(pair[0])+'_'+str(pair[1])+'.pkl', 'wb')
-        #
-        # info = {'features_'+str(pair[0]): chroma_value1,
-        #         'features_'+str(pair[1]): chroma_value2,
-        #         'beats_'+str(pair[0]): list(np.array(chorus1['beats']) - chorus1['start']),
-        #         'beats_'+str(pair[1]): list(np.array(chorus2['beats']) - chorus2['start']),
-        #         'path': path_dtw}
-        #
-        # pickle.dump(info, file)
-        # file.close()
-        ########################################################################
 
         path_dtw = path_dtw[::-1]
         path_dtw_seconds = np.ones(path_dtw.shape)
         for i, frame in enumerate(path_dtw):
             path_dtw_seconds[i,0] = index_seconds1[frame[0]]
             path_dtw_seconds[i,1] = index_seconds2[frame[1]]
+
+        return path_dtw_seconds
+
+    def two_seq_dtw(self, chroma1, chroma2, chorus1, chorus2, metric='euclidean', printTimes=True,
+                    printError=True, dbName='',name='', pair=(0,0), method='', inv_cov=None, hop_len=''):
+
+        t0 = time.time()
+
+
+        path_dtw_seconds = self._get_dtw_path(chroma1, chroma2, metric=metric,
+                                              inv_cov=inv_cov)
+        # chroma_value1 = chroma1['chroma_values']
+        # chroma_value2 = chroma2['chroma_values']
+        #
+        # index_seconds1 = chroma1['index_second']
+        # index_seconds2 = chroma2['index_second']
+        #
+        # # print('chroma1: {}, chroma2: {}'.format(chroma_value1.shape, chroma_value2.shape))
+        # cost_matrix, path_dtw = librosa.sequence.dtw(X=chroma_value1,
+        #                                              Y=chroma_value2,
+        #                                              metric=metric,
+        #                                              mahalanobis_inv_cov=inv_cov)
+        #
+        # ########################################################################
+        # # print('Saving data of pair {}'.format(pair))
+        # # file = open('../../notebooks/giant_steps_paths/features_giant_steps_'+str(pair[0])+'_'+str(pair[1])+'.pkl', 'wb')
+        # #
+        # # info = {'features_'+str(pair[0]): chroma_value1,
+        # #         'features_'+str(pair[1]): chroma_value2,
+        # #         'beats_'+str(pair[0]): list(np.array(chorus1['beats']) - chorus1['start']),
+        # #         'beats_'+str(pair[1]): list(np.array(chorus2['beats']) - chorus2['start']),
+        # #         'path': path_dtw}
+        # #
+        # # pickle.dump(info, file)
+        # # file.close()
+        # ########################################################################
+        #
+        # path_dtw = path_dtw[::-1]
+        # path_dtw_seconds = np.ones(path_dtw.shape)
+        # for i, frame in enumerate(path_dtw):
+        #     path_dtw_seconds[i,0] = index_seconds1[frame[0]]
+        #     path_dtw_seconds[i,1] = index_seconds2[frame[1]]
 
         t1 = time.time()
         if printTimes:
@@ -264,7 +299,7 @@ class SynchronizationData():
         if printError:
             print('Path MAE is {:.2e}\n'.format(curr_error))
 
-        return path_dtw, curr_error
+        return path_dtw_seconds, curr_error
 
     def all_seq_dtw(self, chromas, choruses, metric='euclidean',
                     printTimes=True, printError=True, method='', hop_len=''):
@@ -391,9 +426,6 @@ class SynchronizationData():
                              printTimes=False, printError=False, metric='euclidean',
                              feature_list=['cqt'], bass_beat=False):
 
-        bass_range = [32, 261]
-        mid_range =  [130, 1046]
-        treble_range = [523, 4186]
 
         chroma_choruses = []
         features_dict = {}
@@ -448,29 +480,21 @@ class SynchronizationData():
                 # print('shape of tonnetz is {}'.format(tonnetz.shape))
 
             if 'cqt[bass]' in feature_list or 'cqt[ranges]' in feature_list:
-                chorus_filt = self.filt_range(chorus, bass_range)
+                chorus_filt = self.filt_range(chorus, self.bass_range)
                 cqt = librosa.core.cqt(chorus_filt, sr=self.sr, hop_length=hop_len)
-
-                # if bass_beat:
-                #     beats = [x - choruses[str(i)]['start'] for x in choruses[str(i)]['beats']]
-                #     cqt = self.get_bass_aligned_cqt(cqt, beats, hop_len)
 
                 chroma = np.real(librosa.feature.chroma_cqt(C=cqt, sr=self.sr))
                 features_dict['cqt[bass]'].append(chroma)
 
             if 'cqt[mid]' in feature_list or 'cqt[ranges]' in feature_list:
-                chorus_filt = self.filt_range(chorus, mid_range)
+                chorus_filt = self.filt_range(chorus, self.mid_range)
                 cqt = librosa.core.cqt(chorus_filt, sr=self.sr, hop_length=hop_len)
-
-                # if bass_beat:
-                #     beats = [x - choruses[str(i)]['start'] for x in choruses[str(i)]['beats']]
-                #     cqt = self.get_bass_aligned_cqt(cqt, beats, hop_len)
 
                 chroma = np.real(librosa.feature.chroma_cqt(C=cqt, sr=self.sr))
                 features_dict['cqt[mid]'].append(chroma)
 
             if 'cqt[treble]' in feature_list or 'cqt[ranges]' in feature_list:
-                chorus_filt = self.filt_range(chorus, treble_range)
+                chorus_filt = self.filt_range(chorus, self.treble_range)
                 cqt = librosa.core.cqt(chorus_filt, sr=self.sr, hop_length=hop_len)
 
                 # if bass_beat:
@@ -481,7 +505,7 @@ class SynchronizationData():
                 features_dict['cqt[treble]'].append(chroma)
 
             if 'tonnetz[bass]' in feature_list or 'tonnetz[ranges]' in feature_list:
-                chorus_filt = self.filt_range(chorus, bass_range)
+                chorus_filt = self.filt_range(chorus, self.bass_range)
                 cqt = librosa.core.cqt(chorus_filt, sr=self.sr, hop_length=hop_len)
 
                 # if bass_beat:
@@ -493,7 +517,7 @@ class SynchronizationData():
                 features_dict['tonnetz[bass]'].append(tonnetz)
 
             if 'tonnetz[mid]' in feature_list or 'tonnetz[ranges]' in feature_list:
-                chorus_filt = self.filt_range(chorus, mid_range)
+                chorus_filt = self.filt_range(chorus, self.mid_range)
                 cqt = librosa.core.cqt(chorus_filt, sr=self.sr, hop_length=hop_len)
 
                 # if bass_beat:
@@ -505,7 +529,7 @@ class SynchronizationData():
                 features_dict['tonnetz[mid]'].append(tonnetz)
 
             if 'tonnetz[treble]' in feature_list or 'tonnetz[ranges]' in feature_list:
-                chorus_filt = self.filt_range(chorus, treble_range)
+                chorus_filt = self.filt_range(chorus, self.treble_range)
                 cqt = librosa.core.cqt(chorus_filt, sr=self.sr, hop_length=hop_len)
 
                 # if bass_beat:
@@ -633,6 +657,69 @@ class SynchronizationData():
     def save_results(self, db_error, path, dbName):
         with open(path + dbName + '_errors.pkl', 'wb') as f:
             pickle.dump(db_error, f)
+
+
+    def synchronize_best(self, audios, hop_len=2048):
+        chroma_choruses = []
+        features_dict = {'MFCC':[], 'tonnetz':[], 'cqt[bass]':[],'cqt[mid]':[],
+                         'cqt[treble]':[]}
+
+        for i, chorus in enumerate(audios):
+
+            # MFCC
+            mfcc = librosa.feature.mfcc(sr=self.sr, y=chorus,
+                                        hop_length=hop_len, n_mfcc=20)
+            features_dict['MFCC'].append(mfcc)
+
+            # Tonnetz
+            cqt = librosa.core.cqt(chorus, sr=self.sr, hop_length=hop_len)
+            tonnetz_ = np.real(librosa.feature.chroma_cqt(C=cqt, sr=self.sr,
+                                                     hop_length=hop_len))
+            tonnetz = librosa.feature.tonnetz(chroma=tonnetz_,
+                                                   sr=self.sr)
+            features_dict['tonnetz'].append(tonnetz)
+
+            # CQT bass
+            chorus_filt = self.filt_range(chorus, self.bass_range)
+            cqt = librosa.core.cqt(chorus_filt, sr=self.sr, hop_length=hop_len)
+            chroma = np.real(librosa.feature.chroma_cqt(C=cqt, sr=self.sr))
+            features_dict['cqt[bass]'].append(chroma)
+
+            # CQT Mid
+            chorus_filt = self.filt_range(chorus, self.mid_range)
+            cqt = librosa.core.cqt(chorus_filt, sr=self.sr, hop_length=hop_len)
+            chroma = np.real(librosa.feature.chroma_cqt(C=cqt, sr=self.sr))
+            features_dict['cqt[mid]'].append(chroma)
+
+            # CQT treble
+            chorus_filt = self.filt_range(chorus, self.treble_range)
+            cqt = librosa.core.cqt(chorus_filt, sr=self.sr, hop_length=hop_len)
+            chroma = np.real(librosa.feature.chroma_cqt(C=cqt, sr=self.sr))
+            features_dict['cqt[treble]'].append(chroma)
+
+
+        for i in range(len(audios)):
+            feature_set = None
+            for curr_feature in ['MFCC', 'tonnetz', 'cqt[bass]','cqt[mid]',
+                                 'cqt[treble]']:
+                if feature_set is None:
+                    feature_set = self.normalize(features_dict[curr_feature][i])
+                else:
+                    feature_set = np.append(feature_set,
+                        self.normalize(features_dict[curr_feature][i]), axis=0)
+
+            curr_indexes = np.arange(0, feature_set.shape[1], dtype=float)
+            curr_indexes *= hop_len/self.sr
+
+            chroma_choruses.append({'chroma_values': feature_set,
+                                    'index_second':  curr_indexes})
+
+        alignments = []
+        for i in range(1, len(chroma_choruses)):
+            curr_path = self._get_dtw_path(chroma_choruses[0], chroma_choruses[i],
+                               metric='mahalanobis')
+            alignments.append(curr_path)
+        return alignments
 
 
 def load_results(path, dbName, metric, prefix):
